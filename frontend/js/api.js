@@ -25,7 +25,9 @@ async function apiFetch(path, { method = 'GET', body = null, form = null } = {})
     }
     throw new Error('Tidak dapat menghubungi server. Periksa koneksi / pastikan backend jalan.');
   }
-  if (res.status === 401) {
+  if (res.status === 401 && !path.startsWith('/auth/')) {
+    // Sesi/token benar-benar bermasalah. Pengecualian: salah password saat
+    // login juga 401 — itu harus menampilkan pesan asli server di bawah.
     localStorage.removeItem('elearning_token');
     localStorage.removeItem('elearning_user');
     if (!location.pathname.includes('auth-login')) location.href = 'auth-login.html';

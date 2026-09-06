@@ -38,6 +38,7 @@
         <div class="nb-card"><div class="nb-card-header yellow">📩 PERMINTAAN AKSES</div><div class="nb-card-body" id="list-minta"><div class="nb-hint">Memuat...</div></div></div>
         <div class="nb-card"><div class="nb-card-header pink">⛔ DIBLOKIR</div><div class="nb-card-body" id="list-banned"><div class="nb-hint">Memuat...</div></div></div>
       </div>
+      <div class="nb-card mt"><div class="nb-card-header dark">🚫 BLOKIR PERMANENT (akun terhapus total)</div><div class="nb-card-body" id="list-perma"><div class="nb-hint">Memuat...</div></div></div>
     </main>
   </div>
 </div>
@@ -59,20 +60,29 @@
           // anggota per kelas (untuk tombol pantau + ban yang tepat sasaran)
           const el = document.createElement('div');
           el.className = 'nb-card mb';
-          el.innerHTML = `<div class="nb-card-body"><div class="row"><b>${esc(s.nama)}</b><span class="nb-hint">${esc(s.email)}</span></div>
+          el.innerHTML = `<div class="nb-card-body"><div class="row"><b>${esc(s.nama)}</b><span class="nb-hint">${esc(s.email)}</span><span style="flex:1"></span><a class="nb-btn nb-btn-sm nb-btn-primary" href="pantau-siswa.html?id=${s.id}">👁 Masuk sebagai (lihat saja)</a></div>
             <div class="row mt" id="anggota-${s.id}"><div class="nb-hint">Memuat kelas...</div></div></div>`;
           box.appendChild(el);
           muatAnggota(s.id, kelas);
         }
         document.getElementById('list-minta').innerHTML = pending.length ? pending.map((r) => `
           <div class="row mb"><b>${esc(r.nama)}</b><span class="nb-badge blue">${esc(r.nama_kelas)}</span><span style="flex:1"></span>
-          <button class="nb-btn nb-btn-sm nb-btn-green" data-setuju="${r.id}">Setujui</button>
-          <button class="nb-btn nb-btn-sm nb-btn-danger" data-tolak="${r.id}">Tolak</button></div>`).join('')
+          <button class="nb-btn nb-btn-sm nb-btn-green" data-setuju="${r.id}">Terima</button>
+          <button class="nb-btn nb-btn-sm" data-tolak="${r.id}">Tolak</button>
+          <button class="nb-btn nb-btn-sm nb-btn-danger" data-perma="${r.siswa_id}" data-nama="${esc(r.nama)}">⛔ Permanent</button></div>`).join('')
           : `<div class="nb-hint">Tidak ada permintaan.</div>`;
         document.getElementById('list-banned').innerHTML = banned.length ? banned.map((b) => `
           <div class="row mb"><b>${esc(b.nama)}</b><span class="nb-badge pink">${esc(b.nama_kelas)}</span><span style="flex:1"></span>
-          <button class="nb-btn nb-btn-sm" data-unban="${b.siswa_id}" data-kelas="${b.kelas_id}">Buka Blokir</button></div>`).join('')
+          <button class="nb-btn nb-btn-sm" data-unban="${b.siswa_id}" data-kelas="${b.kelas_id}">Buka Blokir</button>
+          <button class="nb-btn nb-btn-sm nb-btn-danger" data-perma="${b.siswa_id}" data-nama="${esc(b.nama)}">⛔ Permanent</button></div>`).join('')
           : `<div class="nb-hint">Tidak ada yang diblokir.</div>`;
+        try {
+          const perma = await apiFetch('/blokir-permanen');
+          document.getElementById('list-perma').innerHTML = perma.length ? perma.map((p) => `
+            <div class="row mb"><b>${esc(p.nama || p.email)}</b><span class="nb-hint">${esc(p.email)}</span><span style="flex:1"></span>
+            <button class="nb-btn nb-btn-sm" data-buka-perma="${p.id}">Buka Blokir</button></div>`).join('')
+            : `<div class="nb-hint">Tidak ada yang diblokir permanent.</div>`;
+        } catch {}
       } catch (e) { toast(e.message, 'red'); }
     }
     async function muatAnggota(siswaId, kelasList) {
@@ -83,7 +93,7 @@
           const anggota = await apiFetch(`/kelas/${k.id}/anggota`);
           if (anggota.some((a) => a.id === siswaId)) {
             baris.push(`<span class="nb-badge blue">${esc(k.nama_kelas)}</span>
-              <a class="nb-btn nb-btn-sm" href="kelas-detail.html?id=${k.id}&view=siswa">👁 Pantau</a>
+              <a class="nb-btn nb-btn-sm" href="kelas-siswa.html?id=${k.id}">👁 Pantau</a>
               <button class="nb-btn nb-btn-sm nb-btn-danger" data-ban="${siswaId}" data-kelas="${k.id}" data-nama="${esc(anggota.find((a) => a.id === siswaId).nama)}">Kick/Ban</button>`);
           }
         } catch {}
@@ -94,9 +104,8 @@
       const q = (s) => e.target.closest(s);
       let b;
       if ((b = q('[data-ban]'))) {
-        const alasan = prompt(`Kick/ban ${b.dataset.nama}? Alasan:`, '');
-        if (alasan === null) return;
-        try { await apiFetch(`/kelas/${b.dataset.kelas}/ban`, { method: 'POST', body: { siswa_id: b.dataset.ban, alasan } }); toast('Diblokir', 'green'); muat(); }
+        // langsung di-ban tanpa alasan
+        try { await apiFetch(`/kelas/${b.dataset.kelas}/ban`, { method: 'POST', body: { siswa_id: b.dataset.ban } }); toast('Siswa di-ban langsung', 'green'); muat(); }
         catch (err) { toast(err.message, 'red'); }
       }
       if ((b = q('[data-unban]')) && confirm('Buka blokir?')) {
@@ -109,6 +118,14 @@
       }
       if ((b = q('[data-tolak]'))) {
         try { await apiFetch(`/permintaan-akses/${b.dataset.tolak}`, { method: 'PUT', body: { keputusan: 'tolak' } }); toast('Ditolak', 'yellow'); muat(); }
+        catch (err) { toast(err.message, 'red'); }
+      }
+      if ((b = q('[data-perma]')) && confirm(`Blokir PERMANENT ${b.dataset.nama}? Akun + seluruh file/tugas/kuisnya akan DIHAPUS TOTAL dan email tak bisa dipakai lagi.`)) {
+        try { await apiFetch('/blokir-permanen', { method: 'POST', body: { siswa_id: b.dataset.perma } }).then((r) => toast('⛔ ' + r.file_dihapus + ' file ikut terhapus. ' + 'Akun diblokir permanent.', 'green')); muat(); }
+        catch (err) { toast(err.message, 'red'); }
+      }
+      if ((b = q('[data-buka-perma]')) && confirm('Buka blokir permanent? Email bisa dipakai daftar lagi.')) {
+        try { await apiFetch(`/blokir-permanen/${b.dataset.bukaPerma}`, { method: 'DELETE' }); toast('Blokir permanent dibuka', 'green'); muat(); }
         catch (err) { toast(err.message, 'red'); }
       }
     });

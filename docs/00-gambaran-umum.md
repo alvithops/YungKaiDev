@@ -20,7 +20,7 @@ Pembelajaran di sekolah/kampus masih mengandalkan grup chat untuk sebar materi d
 ## 5. Batasan MVP (tahap 1)
 - Auth: register/login JWT, role `mentor` dan `siswa`.
 - 1 siswa bisa gabung banyak kelas, 1 kelas punya banyak siswa.
-- Upload max 10MB, tipe dibatasi.
+- Upload max 5MB per file, tipe dibatasi.
 - Kuis: pilihan ganda saja dulu (essay tahap 2).
 - Real-time = Fetch + auto-refresh 10 detik (WebSocket opsional tahap 2).
 - Tidak ada pembayaran, tidak ada video conference.

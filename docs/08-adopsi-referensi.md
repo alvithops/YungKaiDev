@@ -46,5 +46,6 @@ pada lapisan yang tepat:
 5. **Transkrip nilai** (`pages/transkrip.html`)
    - Rata-rata tugas/kuis/total + unduh `.txt` (seperti referensi).
 
-6. **Mode pantau mentor** (`kelas-detail.html?id=X&view=siswa`)
+6. **Mode pantau mentor** (halaman khusus siswa `kelas-siswa.html` dibuka mentor
+   dari tombol 👁 — read-only, backend menolak pengumpulan peran mentor).
    - Melihat tampilan persis siswa (read-only) + tombol 👁 di daftar anggota.

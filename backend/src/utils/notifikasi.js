@@ -21,7 +21,17 @@ function notifyKelas(kelasId, judul, isi, skipUserId = null, sertakanMentor = fa
   }
 }
 
-module.exports = { notifyUser, notifyKelas, catatAktivitas };
+module.exports = { notifyUser, notifyKelas, notifySekali, catatAktivitas };
+
+// Kirim sekali saja berdasar kunci unik (untuk pemeriksa terjadwal anti-duplikat).
+// Mengembalikan true bila benar-benar terkirim.
+function notifySekali(userId, kelasId, judul, isi, kunci) {
+  try {
+    const info = db.prepare('INSERT OR IGNORE INTO notifikasi (user_id, kelas_id, judul, isi, kunci) VALUES (?,?,?,?,?)')
+      .run(userId, kelasId || null, judul, isi || null, kunci);
+    return info.changes > 0;
+  } catch { return false; }
+}
 
 // Jejak kontribusi harian (untuk grid kontribusi dashboard siswa).
 // jenis: 'login' | 'tugas' | 'kuis' | 'diskusi'

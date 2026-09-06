@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login Mentor — E-Learning</title>
+  <link rel="stylesheet" href="../css/neo-brutal.css" />
+</head>
+<body>
+  <div class="content" style="max-width:440px">
+    <div class="row mb"><a class="nb-btn nb-btn-sm" href="../index.html">← Beranda</a><span class="nb-badge dark">LOGIN MENTOR</span></div>
+    <div class="nb-card">
+      <div class="nb-card-header dark">MASUK SEBAGAI MENTOR</div>
+      <div class="nb-card-body">
+        <div class="nb-alert nb-alert-yellow mb">🔒 Halaman eksklusif pengajar. Akun siswa tidak bisa masuk di sini.</div>
+        <div id="err"></div>
+        <form id="form-login">
+          <label class="nb-label" for="email">Email mentor</label>
+          <input id="email" class="nb-input" type="email" required placeholder="nama@sekolah.id" autocomplete="username" />
+          <label class="nb-label mt" for="password">Password</label>
+          <input id="password" class="nb-input" type="password" required placeholder="••••••" autocomplete="current-password" />
+          <button class="nb-btn nb-btn-dark nb-btn-block mt" type="submit" id="btn-submit">Masuk →</button>
+        </form>
+        <p class="nb-hint" style="text-align:center">Kamu siswa? <a href="login-siswa.html"><b>Login sebagai Siswa →</b></a></p>
+      </div>
+    </div>
+  </div>
+  <script src="../js/config.js"></script>
+  <script src="../js/api.js"></script>
+  <script>
+    (function () {
+      const u = JSON.parse(localStorage.getItem('elearning_user') || 'null');
+      if (localStorage.getItem('elearning_token') && u) {
+        location.href = u.role === 'mentor' ? 'dashboard-mentor.html' : 'dashboard-siswa.html';
+      }
+    })();
+    document.getElementById('form-login').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('btn-submit');
+      btn.disabled = true; btn.textContent = 'Memeriksa...';
+      try {
+        const data = await apiFetch('/auth/login-mentor', { method: 'POST', body: { email: email.value, password: password.value } });
+        localStorage.setItem('elearning_token', data.token);
+        localStorage.setItem('elearning_user', JSON.stringify(data.user));
+        location.href = 'dashboard-mentor.html';
+      } catch (err) {
+        document.getElementById('err').innerHTML = `<div class="nb-alert nb-alert-red mb">⚠ ${esc(err.message)}</div>`;
+      } finally { btn.disabled = false; btn.textContent = 'Masuk →'; }
+    });
+  </script>
+</body>
+</html>

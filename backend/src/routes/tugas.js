@@ -20,11 +20,15 @@ function isMember(kelasId, userId) {
   return !!db.prepare('SELECT id FROM kelas_member WHERE kelas_id = ? AND siswa_id = ?').get(kelasId, userId);
 }
 
-// GET /api/kelas/:id/tugas — siswa dapat status kumpul/nilai miliknya
+// GET /api/kelas/:id/tugas — hanya yang sedang MASUK kelas (siswa dapat status kumpul/nilai miliknya)
 router.get('/kelas/:id/tugas', verifyToken, (req, res) => {
   const kelas = db.prepare('SELECT * FROM kelas WHERE id = ?').get(req.params.id);
   if (!kelas) return fail(res, 'Kelas tidak ditemukan', 404);
   if (kelas.mentor_id !== req.user.id && !isMember(kelas.id, req.user.id)) return fail(res, 'Bukan anggota kelas ini', 403);
+  if (req.user.role === 'siswa') {
+    const st = db.prepare('SELECT status FROM kelas_member WHERE kelas_id = ? AND siswa_id = ?').get(kelas.id, req.user.id);
+    if (!st || st.status !== 'aktif') return fail(res, 'Masuk kembali ke kelas untuk mengakses tugas.', 403);
+  }
   const rows = db.prepare('SELECT * FROM tugas WHERE kelas_id = ? ORDER BY id DESC').all(kelas.id);
   if (req.user.role === 'siswa') {
     const hasil = rows.map((t) => ({
@@ -46,10 +50,11 @@ router.post('/kelas/:id/tugas', verifyToken, requireRole('mentor'), (req, res) =
   const kelas = db.prepare('SELECT * FROM kelas WHERE id = ?').get(req.params.id);
   if (!kelas) return fail(res, 'Kelas tidak ditemukan', 404);
   if (kelas.mentor_id !== req.user.id) return fail(res, 'Bukan kelas milikmu', 403);
-  const { judul, deskripsi, deadline } = req.body || {};
+  const { judul, deskripsi, deadline, pertemuan } = req.body || {};
   if (!judul) return fail(res, 'Judul wajib diisi');
-  const info = db.prepare('INSERT INTO tugas (kelas_id, judul, deskripsi, deadline) VALUES (?,?,?,?)')
-    .run(kelas.id, String(judul).trim(), (deskripsi || '').trim(), deadline || null);
+  const pert = Math.min(14, Math.max(1, Number(pertemuan) || 1));
+  const info = db.prepare('INSERT INTO tugas (kelas_id, judul, deskripsi, deadline, pertemuan) VALUES (?,?,?,?,?)')
+    .run(kelas.id, String(judul).trim(), (deskripsi || '').trim(), deadline || null, pert);
   notifyKelas(kelas.id, `📥 Tugas baru: ${String(judul).trim()}`, `Kelas ${kelas.nama_kelas}${deadline ? ' · deadline ' + deadline : ''}`);
   return ok(res, db.prepare('SELECT * FROM tugas WHERE id = ?').get(info.lastInsertRowid), 'Tugas dibuat', 201);
 });
@@ -59,9 +64,9 @@ router.put('/tugas/:tugasId', verifyToken, requireRole('mentor'), (req, res) => 
   const { tugas, kelas } = kelasOf(req.params.tugasId);
   if (!tugas) return fail(res, 'Tugas tidak ditemukan', 404);
   if (kelas.mentor_id !== req.user.id) return fail(res, 'Bukan kelas milikmu', 403);
-  const { judul, deskripsi, deadline } = req.body || {};
-  db.prepare('UPDATE tugas SET judul = COALESCE(?, judul), deskripsi = COALESCE(?, deskripsi), deadline = COALESCE(?, deadline) WHERE id = ?')
-    .run(judul ?? null, deskripsi ?? null, deadline ?? null, tugas.id);
+  const { judul, deskripsi, deadline, pertemuan } = req.body || {};
+  db.prepare('UPDATE tugas SET judul = COALESCE(?, judul), deskripsi = COALESCE(?, deskripsi), deadline = COALESCE(?, deadline), pertemuan = COALESCE(?, pertemuan) WHERE id = ?')
+    .run(judul ?? null, deskripsi ?? null, deadline ?? null, pertemuan ? Math.min(14, Math.max(1, Number(pertemuan))) : null, tugas.id);
   return ok(res, db.prepare('SELECT * FROM tugas WHERE id = ?').get(tugas.id), 'Tugas diperbarui');
 });
 router.delete('/tugas/:tugasId', verifyToken, requireRole('mentor'), (req, res) => {
@@ -97,6 +102,8 @@ function simpanKumpul(req, res, data) {
   const { tugas, kelas } = kelasOf(req.params.tugasId);
   if (!tugas) { if (data.file_path) fs.unlink(path.join(__dirname, '..', '..', data.file_path.replace(/^\/+/, '')), () => {}); return fail(res, 'Tugas tidak ditemukan', 404); }
   if (!isMember(kelas.id, req.user.id)) return fail(res, 'Kamu bukan anggota kelas ini', 403);
+  const stTugas = db.prepare('SELECT status FROM kelas_member WHERE kelas_id = ? AND siswa_id = ?').get(kelas.id, req.user.id);
+  if (!stTugas || stTugas.status !== 'aktif') return fail(res, 'Kamu sedang keluar kelas. Masuk kembali dulu untuk mengumpulkan.', 403);
   if (tugas.deadline && new Date(tugas.deadline) < new Date()) return fail(res, 'Deadline sudah lewat', 400);
   const lama = db.prepare('SELECT * FROM pengumpulan_tugas WHERE tugas_id = ? AND siswa_id = ?').get(tugas.id, req.user.id);
   if (lama && lama.status === 'dinilai') return fail(res, 'Sudah dinilai, tidak bisa kumpul ulang', 409);

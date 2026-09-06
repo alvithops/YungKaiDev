@@ -7,10 +7,12 @@
 | 200 user campuran × 3 putaran (3660 req) | 100% sukses, 845–882 req/detik |
 | **1000 user × 1 putaran (6100 req, gelombang 100)** | **100% sukses, 1090 req/detik, p95 88ms** |
 | Burst 1000× serentak persis (`/api/health`) | 100% sukses dalam 0,9 dtk (1152 req/detik) |
+| **2000 user × 1 putaran (12200 req, gelombang 100)** | **100% sukses, 1120 req/detik, p95 84ms** |
+| Burst 2000× serentak persis (`/api/health`) | 100% sukses dalam 1,4 dtk (1402 req/detik) |
 | Mode cluster 4 worker (300 user × 2) | 100% sukses, 1194 req/detik |
 
-Cara mengulang: `node loadtest.js --users 1000 --putaran 1 --gelombang 100`
-Burst: `node loadtest.js --burst 1000`
+Cara mengulang: `node loadtest.js --users 2000 --putaran 1 --gelombang 100`
+Burst: `node loadtest.js --burst 2000`
 
 ## Kenapa bisa bersamaan
 

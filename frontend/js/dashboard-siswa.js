@@ -59,7 +59,7 @@
         <div class="nb-card-header ${['yellow', 'blue', 'pink', 'green'][i % 4]}">${esc(k.nama_kelas)}</div>
         <div class="nb-card-body">
           <div class="mono nb-hint">${esc(k.kode_kelas)} · ${esc(k.mentor_nama || '')}</div>
-          <div class="row mt"><a class="nb-btn nb-btn-sm nb-btn-dark" href="kelas-detail.html?id=${k.id}">Masuk Kelas</a></div>
+          <div class="row mt"><a class="nb-btn nb-btn-sm nb-btn-dark" href="kelas-siswa.html?id=${k.id}">Masuk Kelas</a></div>
         </div>
       </div>`).join('');
     box.innerHTML = kartu + `

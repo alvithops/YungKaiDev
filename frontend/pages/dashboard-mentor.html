@@ -46,7 +46,7 @@
       <div class="nb-alert nb-alert-yellow mb">👋 <b id="sambutan-tampil">Memuat sambutan...</b></div>
       <div class="grid-stats">
         <div class="nb-card"><div class="nb-card-header yellow">KELAS</div><div class="nb-card-body"><div class="stat-num" id="stat-kelas">…</div><div>kelas aktif</div></div></div>
-        <div class="nb-card"><div class="nb-card-header blue">SISWA</div><div class="nb-card-body"><div class="stat-num" id="stat-siswa">…</div><div>total siswa</div></div></div>
+        <div class="nb-card"><div class="nb-card-header blue">SISWA</div><div class="nb-card-body"><div class="stat-num" id="stat-siswa">…</div><div>siswa terdaftar</div></div></div>
         <div class="nb-card"><div class="nb-card-header pink">BELUM DINILAI</div><div class="nb-card-body"><div class="stat-num" id="stat-tugas">…</div><div>tugas menunggu</div></div></div>
         <div class="nb-card"><div class="nb-card-header green">KUIS AKTIF</div><div class="nb-card-body"><div class="stat-num" id="stat-kuis">…</div><div>berjalan</div></div></div>
       </div>
@@ -66,11 +66,19 @@
                 <input id="in-wa" class="nb-input" placeholder="Link WhatsApp" aria-label="WhatsApp" />
                 <input id="in-ig" class="nb-input" placeholder="Link Instagram" aria-label="Instagram" />
               </div>
-              <input id="in-email" class="nb-input mt" placeholder="Link Email (mailto:...)" aria-label="Email" />
+              <input id="in-email" class="nb-input mt" placeholder="Link GitHub" aria-label="GitHub" />
               <button class="nb-btn nb-btn-sm nb-btn-primary mt" type="submit">Simpan Semua</button>
             </form>
           </div>
         </div>
+      </div>
+
+      <div class="nb-card mt">
+        <div class="nb-card-header green"><span>🔴 AKTIVITAS SISWA TERKINI (LIVE)</span><span class="nb-badge dark">auto-refresh 10 dtk</span></div>
+        <div class="nb-card-body"><div class="grid-2">
+          <div><b>📡 Feed (sama dengan yang siswa kerjakan)</b><div id="feed-aktivitas" class="mt"><div class="nb-hint">Memuat...</div></div></div>
+          <div><b>🟢 Siswa aktif</b><div id="siswa-aktif" class="mt"><div class="nb-hint">Memuat...</div></div></div>
+        </div></div>
       </div>
 
       <div class="grid-2 mt">

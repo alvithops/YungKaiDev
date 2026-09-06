@@ -50,4 +50,8 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3000;
+// Pemeriksa keterlambatan tugas → lonceng mentor (sekali per kasus, aman multi-worker)
+const { cekTugasTelat } = require('./src/utils/cekTelat');
+setTimeout(() => { try { const n = cekTugasTelat(); if (n) console.log(`[telat] ${n} notifikasi keterlambatan terkirim`); } catch (e) { console.error('[telat]', e.message); } }, 20000);
+setInterval(() => { try { cekTugasTelat(); } catch {} }, Number(process.env.CEK_TELAT_MS) || 5 * 60 * 1000);
 app.listen(PORT, () => console.log(`E-Learning jalan di http://localhost:${PORT} (worker ${process.pid})`));

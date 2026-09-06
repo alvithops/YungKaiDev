@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kelola Kelas — Mentor</title>
+  <link rel="stylesheet" href="../css/neo-brutal.css" />
+</head>
+<body data-page="class" data-require="mentor">
+<div class="app" id="app">
+  <aside class="sidebar" aria-label="Navigasi utama">
+    <div class="brand"><span class="brand-mark">E</span> E-LEARNING</div>
+    <nav class="nb-nav">
+      <div class="nb-navlabel">Mentor</div>
+      <a class="nb-navlink" data-nav="dashboard" href="dashboard-mentor.html">📊 Dashboard</a>
+      <a class="nb-navlink" data-nav="class" href="class-mentor.html">📚 Class</a>
+      <a class="nb-navlink" data-nav="transkrip" href="transkrip-mentor.html">🎓 Transkrip</a>
+      <a class="nb-navlink" data-nav="announcement" href="announcement.html">📢 Announcement</a>
+      <a class="nb-navlink" data-nav="pantau" href="pantau.html">👁 Pantau Siswa</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="profile-chip"><div class="avatar" data-profile-avatar>?</div><div><b data-profile-nama>...</b><br><span class="nb-badge dark" style="font-size:10px" data-profile-role>MENTOR</span></div></div>
+      <div class="nb-card"><div class="nb-card-body" style="padding:10px"><b>Kode Kelas</b><div class="nb-code mt" id="kode-kelas">…</div><button class="nb-btn nb-btn-sm nb-btn-block mt" data-copy-kode>Copy Kode</button></div></div>
+      <button class="nb-btn nb-btn-sm nb-btn-block" data-logout>Keluar</button>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <div class="main-col">
+    <header class="topbar">
+      <button id="btnHamburger" class="nb-btn nb-btn-sm hamburger" aria-expanded="false" aria-label="Buka menu">☰</button>
+      <h1 class="page-title" id="judul-kelas">Memuat...</h1>
+      <span class="nb-badge blue hide-mobile" id="badge-siswa">…</span>
+      <span style="flex:1"></span>
+      <div style="position:relative">
+        <button id="btn-bell" class="nb-btn nb-btn-sm" aria-label="Notifikasi">🔔 <span id="bell-count" class="nb-badge red" style="font-size:10px">0</span></button>
+        <div id="bell-panel" style="display:none;position:absolute;right:0;top:52px;width:min(92vw,340px);z-index:60">
+          <div class="nb-card"><div class="nb-card-header yellow"><span>NOTIFIKASI</span><button class="nb-btn nb-btn-sm" id="btn-baca-semua">✓ Dibaca</button></div>
+          <div class="nb-card-body" id="bell-list" style="max-height:320px;overflow:auto"><div class="nb-hint">Memuat...</div></div></div>
+        </div>
+      </div>
+    </header>
+
+    <main class="content">
+      <p class="nb-hint mb" id="deskripsi-kelas"></p>
+      <div class="grid-2">
+        <div>
+          <div class="nb-card mb" id="materi">
+            <div class="nb-card-header yellow"><span>📖 MODUL / MATERI</span><span class="nb-badge dark" id="count-materi">…</span></div>
+            <div class="nb-card-body">
+              <div id="list-materi"><div class="nb-hint">Memuat...</div></div>
+              <form id="form-materi" class="mt">
+                <b>+ Tambah Modul (teks / file)</b>
+                <input id="fm_judul" class="nb-input mt" required placeholder="Judul modul" />
+                <select id="fm_pert" class="nb-select mt" aria-label="Pertemuan"></select>
+                <textarea id="fm_deskripsi" class="nb-textarea mt" rows="2" placeholder="Catatan teks (opsional)"></textarea>
+                <input id="fm_video" class="nb-input mt" placeholder="Link video (opsional)" />
+                <input id="fm_file" type="file" class="nb-input mt" aria-label="File modul" />
+                <button class="nb-btn nb-btn-sm nb-btn-primary mt" type="submit">Simpan Modul</button>
+              </form>
+            </div>
+          </div>
+
+          <div class="nb-card mb" id="tugas">
+            <div class="nb-card-header pink"><span>📥 TUGAS + PENILAIAN</span></div>
+            <div class="nb-card-body">
+              <form id="form-tugas" class="mb">
+                <b>+ Buat Tugas</b>
+                <input id="ft_judul" class="nb-input mt" required placeholder="Judul tugas" />
+                <select id="ft_pert" class="nb-select mt" aria-label="Pertemuan"></select>
+                <textarea id="ft_deskripsi" class="nb-textarea mt" rows="2" placeholder="Instruksi"></textarea>
+                <input id="ft_deadline" type="datetime-local" class="nb-input mt" aria-label="Deadline" />
+                <button class="nb-btn nb-btn-sm nb-btn-primary mt" type="submit">Buat Tugas</button>
+              </form>
+              <div id="list-tugas"><div class="nb-hint">Memuat...</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="nb-card mb" id="kuis">
+            <div class="nb-card-header blue">📝 KUIS + SOAL</div>
+            <div class="nb-card-body">
+              <form id="form-kuis" class="mb">
+                <b>+ Buat Kuis</b>
+                <input id="fk_judul" class="nb-input mt" required placeholder="Judul kuis" />
+                <select id="fk_pert" class="nb-select mt" aria-label="Pertemuan"></select>
+                <input id="fk_deskripsi" class="nb-input mt" placeholder="Deskripsi" />
+                <div class="row mt"><input id="fk_durasi" type="number" class="nb-input" value="30" aria-label="Durasi menit" /><input id="fk_deadline" type="datetime-local" class="nb-input" aria-label="Deadline kuis" /></div>
+                <button class="nb-btn nb-btn-sm nb-btn-primary mt" type="submit">Buat Kuis</button>
+              </form>
+              <div id="list-kuis"><div class="nb-hint">Memuat...</div></div>
+            </div>
+          </div>
+
+          <div class="nb-card mb">
+            <div class="nb-card-header dark">👥 ANGGOTA & MODERASI</div>
+            <div class="nb-card-body">
+              <div id="list-anggota"><div class="nb-hint">Memuat...</div></div>
+              <b>📩 Permintaan akses kembali</b>
+              <div id="list-minta-akses" class="mt"><div class="nb-hint">Memuat...</div></div>
+              <b>⛔ Diblokir</b>
+              <div id="list-banned" class="mt"><div class="nb-hint">Memuat...</div></div>
+            </div>
+          </div>
+
+          <div class="nb-card mb">
+            <div class="nb-card-header pink">📢 PENGUMUMAN KELAS</div>
+            <div class="nb-card-body">
+              <form id="form-pengumuman" class="row">
+                <input id="fp_isi" class="nb-input" style="flex:1" required placeholder="Pengumuman untuk anggota kelas..." aria-label="Isi pengumuman" />
+                <button class="nb-btn nb-btn-sm nb-btn-primary" type="submit">Kirim →</button>
+              </form>
+            </div>
+          </div>
+
+          <div class="nb-card" id="diskusi">
+            <div class="nb-card-header green"><span>💬 DISKUSI</span><button class="nb-btn nb-btn-sm nb-btn-danger" data-hapus-semua-diskusi>Hapus Semua Chat</button></div>
+            <div class="nb-card-body">
+              <div id="list-diskusi"><div class="nb-hint">Memuat...</div></div>
+              <form id="form-diskusi" class="row mt">
+                <input type="hidden" id="fd_parent" />
+                <input id="fd_isi" class="nb-input" style="flex:1" placeholder="Tulis pesan..." required aria-label="Tulis pesan" />
+                <button class="nb-btn nb-btn-sm nb-btn-dark" type="submit">Kirim</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+<script src="../js/config.js"></script>
+<script src="../js/realtime.js"></script>
+<script src="../js/api.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/notifikasi.js"></script>
+<script src="../js/layout.js"></script>
+<script src="../js/kelas-mentor.js"></script>
+</body>
+</html>

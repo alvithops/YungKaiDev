@@ -18,6 +18,13 @@ async function requireAuth() {
     throw new Error('redirect');
   }
   renderProfile(user);
+  // Heartbeat: tiap 60 dtk panggil API agar server menandai user sedang online.
+  // (Server menulis last_seen max 1x/menit → dipakai penghitung "siswa online".)
+  if (!window.__heartbeat) {
+    window.__heartbeat = setInterval(() => {
+      if (localStorage.getItem('elearning_token')) apiFetch('/auth/me').catch(() => {});
+    }, 60000);
+  }
   return user;
 }
 

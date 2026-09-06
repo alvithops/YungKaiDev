@@ -13,11 +13,15 @@ function isMember(kelasId, userId) {
   return !!db.prepare('SELECT id FROM kelas_member WHERE kelas_id = ? AND siswa_id = ?').get(kelasId, userId);
 }
 
-// GET /api/kelas/:id/kuis
+// GET /api/kelas/:id/kuis — hanya yang sedang MASUK kelas
 router.get('/kelas/:id/kuis', verifyToken, (req, res) => {
   const kelas = db.prepare('SELECT * FROM kelas WHERE id = ?').get(req.params.id);
   if (!kelas) return fail(res, 'Kelas tidak ditemukan', 404);
   if (kelas.mentor_id !== req.user.id && !isMember(kelas.id, req.user.id)) return fail(res, 'Bukan anggota kelas ini', 403);
+  if (req.user.role === 'siswa') {
+    const st = db.prepare('SELECT status FROM kelas_member WHERE kelas_id = ? AND siswa_id = ?').get(kelas.id, req.user.id);
+    if (!st || st.status !== 'aktif') return fail(res, 'Masuk kembali ke kelas untuk mengakses kuis.', 403);
+  }
   const rows = db.prepare('SELECT k.*, (SELECT COUNT(*) FROM soal s WHERE s.kuis_id = k.id) AS jml_soal FROM kuis k WHERE k.kelas_id = ? ORDER BY k.id DESC').all(kelas.id);
   if (req.user.role === 'siswa') {
     return ok(res, rows.map((k) => ({ ...k, saya: db.prepare('SELECT skor, submitted_at FROM hasil_kuis WHERE kuis_id = ? AND siswa_id = ?').get(k.id, req.user.id) || null })));
@@ -30,12 +34,25 @@ router.post('/kelas/:id/kuis', verifyToken, requireRole('mentor'), (req, res) =>
   const kelas = db.prepare('SELECT * FROM kelas WHERE id = ?').get(req.params.id);
   if (!kelas) return fail(res, 'Kelas tidak ditemukan', 404);
   if (kelas.mentor_id !== req.user.id) return fail(res, 'Bukan kelas milikmu', 403);
-  const { judul, deskripsi, durasi_menit, deadline } = req.body || {};
+  const { judul, deskripsi, durasi_menit, deadline, pertemuan } = req.body || {};
   if (!judul) return fail(res, 'Judul wajib diisi');
-  const info = db.prepare('INSERT INTO kuis (kelas_id, judul, deskripsi, durasi_menit, deadline) VALUES (?,?,?,?,?)')
-    .run(kelas.id, String(judul).trim(), (deskripsi || '').trim(), Number(durasi_menit) || 30, deadline || null);
+  const pert = Math.min(14, Math.max(1, Number(pertemuan) || 1));
+  const info = db.prepare('INSERT INTO kuis (kelas_id, judul, deskripsi, durasi_menit, deadline, pertemuan) VALUES (?,?,?,?,?,?)')
+    .run(kelas.id, String(judul).trim(), (deskripsi || '').trim(), Number(durasi_menit) || 30, deadline || null, pert);
   notifyKelas(kelas.id, `📝 Kuis baru: ${String(judul).trim()}`, `Kelas ${kelas.nama_kelas}`);
   return ok(res, db.prepare('SELECT * FROM kuis WHERE id = ?').get(info.lastInsertRowid), 'Kuis dibuat', 201);
+});
+
+// PUT /api/kuis/:kuisId (mentor pemilik kelas) — edit judul/deskripsi/pertemuan
+router.put('/kuis/:kuisId', verifyToken, requireRole('mentor'), (req, res) => {
+  const kuis = db.prepare('SELECT * FROM kuis WHERE id = ?').get(req.params.kuisId);
+  if (!kuis) return fail(res, 'Kuis tidak ditemukan', 404);
+  const kelas = db.prepare('SELECT * FROM kelas WHERE id = ?').get(kuis.kelas_id);
+  if (kelas.mentor_id !== req.user.id) return fail(res, 'Bukan kelas milikmu', 403);
+  const { judul, deskripsi, durasi_menit, deadline, pertemuan } = req.body || {};
+  db.prepare('UPDATE kuis SET judul = COALESCE(?, judul), deskripsi = COALESCE(?, deskripsi), durasi_menit = COALESCE(?, durasi_menit), deadline = ?, pertemuan = COALESCE(?, pertemuan) WHERE id = ?')
+    .run(judul ?? null, deskripsi ?? null, durasi_menit ?? null, deadline || null, pertemuan ? Math.min(14, Math.max(1, Number(pertemuan))) : null, kuis.id);
+  return ok(res, db.prepare('SELECT * FROM kuis WHERE id = ?').get(kuis.id), 'Kuis diperbarui');
 });
 
 // POST /api/kuis/kuis/:kuisId/soal (mentor pemilik kelas)
@@ -49,7 +66,7 @@ router.post('/kuis/:kuisId/soal', verifyToken, requireRole('mentor'), (req, res)
   const k = String(kunci || 'A').toUpperCase();
   if (!['A', 'B', 'C', 'D'].includes(k)) return fail(res, 'Kunci harus A/B/C/D');
   const info = db.prepare('INSERT INTO soal (kuis_id, pertanyaan, opsi_a, opsi_b, opsi_c, opsi_d, kunci) VALUES (?,?,?,?,?,?,?)')
-    .run(pertanyaan, opsi_a, opsi_b, opsi_c, opsi_d, k);
+    .run(kuis.id, pertanyaan, opsi_a, opsi_b, opsi_c, opsi_d, k);
   return ok(res, db.prepare('SELECT * FROM soal WHERE id = ?').get(info.lastInsertRowid), 'Soal ditambahkan', 201);
 });
 
@@ -79,6 +96,10 @@ router.get('/kuis/:kuisId/soal', verifyToken, (req, res) => {
   const kelas = db.prepare('SELECT * FROM kelas WHERE id = ?').get(kuis.kelas_id);
   const anggota = isMember(kelas.id, req.user.id);
   if (kelas.mentor_id !== req.user.id && !anggota) return fail(res, 'Bukan anggota kelas ini', 403);
+  if (req.user.role === 'siswa') {
+    const st = db.prepare('SELECT status FROM kelas_member WHERE kelas_id = ? AND siswa_id = ?').get(kelas.id, req.user.id);
+    if (!st || st.status !== 'aktif') return fail(res, 'Masuk kembali ke kelas untuk mengakses kuis.', 403);
+  }
   const rows = db.prepare('SELECT * FROM soal WHERE kuis_id = ? ORDER BY id').all(kuis.id);
   if (req.user.role === 'siswa') return ok(res, rows.map(({ kunci, ...s }) => s));
   return ok(res, rows);
@@ -89,6 +110,8 @@ router.post('/kuis/:kuisId/submit', verifyToken, requireRole('siswa'), (req, res
   const kuis = db.prepare('SELECT * FROM kuis WHERE id = ?').get(req.params.kuisId);
   if (!kuis) return fail(res, 'Kuis tidak ditemukan', 404);
   if (!isMember(kuis.kelas_id, req.user.id)) return fail(res, 'Bukan anggota kelas ini', 403);
+  const stKuis = db.prepare('SELECT status FROM kelas_member WHERE kelas_id = ? AND siswa_id = ?').get(kuis.kelas_id, req.user.id);
+  if (!stKuis || stKuis.status !== 'aktif') return fail(res, 'Kamu sedang keluar kelas. Masuk kembali untuk mengerjakan.', 403);
   if (kuis.deadline && new Date(kuis.deadline) < new Date()) return fail(res, 'Deadline kuis sudah lewat', 400);
   if (db.prepare('SELECT id FROM hasil_kuis WHERE kuis_id = ? AND siswa_id = ?').get(kuis.id, req.user.id)) {
     return fail(res, 'Kuis sudah dikerjakan (maks 1 percobaan)', 409);

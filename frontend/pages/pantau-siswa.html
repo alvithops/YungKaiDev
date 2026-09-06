@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pantau Siswa — Mentor (Read-Only)</title>
+  <link rel="stylesheet" href="../css/neo-brutal.css" />
+</head>
+<body data-page="pantau" data-require="mentor">
+<div class="app" id="app">
+  <aside class="sidebar" aria-label="Navigasi utama">
+    <div class="brand"><span class="brand-mark">E</span> E-LEARNING</div>
+    <nav class="nb-nav">
+      <div class="nb-navlabel">Mentor</div>
+      <a class="nb-navlink" data-nav="dashboard" href="dashboard-mentor.html">📊 Dashboard</a>
+      <a class="nb-navlink" data-nav="class" href="class-mentor.html">📚 Class</a>
+      <a class="nb-navlink" data-nav="transkrip" href="transkrip-mentor.html">🎓 Transkrip</a>
+      <a class="nb-navlink" data-nav="announcement" href="announcement.html">📢 Announcement</a>
+      <a class="nb-navlink" data-nav="pantau" href="pantau.html">👁 Pantau Siswa</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="profile-chip"><div class="avatar" data-profile-avatar>?</div><div><b data-profile-nama>...</b><br><span class="nb-badge dark" style="font-size:10px" data-profile-role>MENTOR</span></div></div>
+      <button class="nb-btn nb-btn-sm nb-btn-block" data-logout>Keluar</button>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+  <div class="main-col">
+    <header class="topbar">
+      <button id="btnHamburger" class="nb-btn nb-btn-sm hamburger" aria-expanded="false" aria-label="Buka menu">☰</button>
+      <h1 class="page-title">Mode Pantau</h1>
+      <span style="flex:1"></span>
+      <a class="nb-btn nb-btn-sm" href="pantau.html">← Kembali</a>
+    </header>
+    <main class="content">
+      <div class="nb-alert nb-alert-yellow mb">👁 <b>Mode pantau — melihat saja.</b> Halaman ini 100% read-only (hanya GET): tidak menulis, tidak menilai, tidak mengubah apa pun milik siswa.</div>
+      <div class="nb-card mb"><div class="nb-card-header blue">🧑‍🎓 PROFIL SISWA</div><div class="nb-card-body" id="profil"><div class="nb-hint">Memuat...</div></div></div>
+      <div class="grid-2">
+        <div class="nb-card"><div class="nb-card-header yellow">📚 KELAS DIIKUTI</div><div class="nb-card-body" id="kelas"><div class="nb-hint">Memuat...</div></div></div>
+        <div class="nb-card"><div class="nb-card-header green">✓ NILAI (20 TERAKHIR)</div><div class="nb-card-body" id="nilai"><div class="nb-hint">Memuat...</div></div></div>
+      </div>
+      <div class="nb-card mt"><div class="nb-card-header pink">🟩 KONTRIBUSI 10 MINGGU</div><div class="nb-card-body"><div id="grid" style="display:grid;grid-template-columns:repeat(10,1fr);gap:4px"><div class="nb-hint">Memuat...</div></div></div></div>
+    </main>
+  </div>
+</div>
+<script src="../js/config.js"></script>
+<script src="../js/api.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/layout.js"></script>
+<script>
+  // PENTING: halaman ini hanya melakukan GET. Tidak ada POST/PUT/DELETE,
+  // tidak ada form, tidak ada heartbeat tambahan — nol efek ke data siswa.
+  (async () => {
+    await requireAuth();
+    const id = new URLSearchParams(location.search).get('id');
+    if (!id) { location.href = 'pantau.html'; return; }
+    try {
+      const d = await apiFetch(`/pantau/siswa/${id}`);
+      document.getElementById('profil').innerHTML =
+        `<div class="row"><b style="font-size:20px">${esc(d.siswa.nama)}</b><span class="nb-badge blue">@${esc(d.siswa.username || '-')}</span></div>
+         <div class="nb-hint">${esc(d.siswa.email)} · terdaftar ${new Date(d.siswa.created_at).toLocaleDateString('id-ID')}</div>`;
+      document.getElementById('kelas').innerHTML = d.kelas.length ? d.kelas.map((k) =>
+        `<div class="row mb"><b>${esc(k.nama_kelas)}</b><span class="nb-badge ${k.status === 'aktif' ? 'green' : 'yellow'}">${esc(k.status)}</span><span style="flex:1"></span><a class="nb-btn nb-btn-sm" href="kelas-siswa.html?id=${k.id}">Lihat kelas →</a></div>`).join('')
+        : `<div class="nb-hint">Belum ikut kelas mana pun.</div>`;
+      document.getElementById('nilai').innerHTML = d.nilai.length ? d.nilai.map((n) =>
+        `<div class="row mb"><span class="nb-badge ${n.jenis === 'kuis' ? 'blue' : 'green'}">${n.jenis}</span><b>${esc(n.apa)}</b><span style="flex:1"></span><b>${n.nilai}</b><span class="nb-hint">${esc(n.nama_kelas)}</span></div>`).join('')
+        : `<div class="nb-hint">Belum ada nilai.</div>`;
+      const g = document.getElementById('grid');
+      g.innerHTML = '';
+      const warna = (n) => !n ? '#fff' : n === 1 ? '#FFF3BF' : n <= 3 ? '#FFC900' : '#23D46B';
+      for (let i = 69; i >= 0; i--) {
+        const t = new Date(Date.now() - i * 864e5).toISOString().slice(0, 10);
+        const n = d.ringkas[t] || 0;
+        const el = document.createElement('div');
+        el.title = `${t}: ${n} aktivitas`;
+        el.style.cssText = `aspect-ratio:1;background:${warna(n)};border:2px solid var(--ink);border-radius:3px`;
+        g.appendChild(el);
+      }
+    } catch (e) {
+      document.getElementById('profil').innerHTML = `<div class="nb-alert nb-alert-red">⚠ ${esc(e.message)}</div>`;
+    }
+  })();
+</script>
+</body>
+</html>

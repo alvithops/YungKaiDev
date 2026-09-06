@@ -46,6 +46,6 @@
 - NF01: Frontend responsif (HP + laptop), pakai Tailwind.
 - NF02: API response JSON konsisten: `{ success, message, data }`.
 - NF03: Password di-hash bcrypt, auth JWT 7 hari.
-- NF04: Validasi upload: max 10MB, ekstensi: pdf, doc, docx, zip, rar, jpg, png, txt, js, py, php, java, html, css.
+- NF04: Validasi upload: max 5MB per file, ekstensi: pdf, doc, docx, xls, xlsx, csv, ppt, pptx, odt, ods, odp, rtf, zip, rar, jpg, png, txt, md, js, py, php, java, html, css.
 - NF05: MySQL dengan foreign key + index pada `kode_kelas`, `kelas_id`.
 - NF06: Struktur kode MVC sederhana agar mudah dijelaskan di laporan.

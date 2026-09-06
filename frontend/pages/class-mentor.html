@@ -82,7 +82,7 @@
           el.style.cssText = 'flex:1;min-width:220px';
           el.innerHTML = `<div class="nb-card-header ${colors[i % 4]}"><span>${esc(k.nama_kelas)}</span></div>
             <div class="nb-card-body"><span class="nb-code">${esc(k.kode_kelas)}</span>
-            <div class="row mt"><a class="nb-btn nb-btn-sm nb-btn-dark" href="kelas-detail.html?id=${k.id}">Kelola →</a>
+            <div class="row mt"><a class="nb-btn nb-btn-sm nb-btn-dark" href="kelas-mentor.html?id=${k.id}">Kelola →</a>
             <button class="nb-btn nb-btn-sm" data-copy="${esc(k.kode_kelas)}">Copy</button>
             <button class="nb-btn nb-btn-sm" data-regen="${k.id}">↻ Kode</button>
             <button class="nb-btn nb-btn-sm nb-btn-danger" data-hapus="${k.id}">Hapus</button></div></div>`;

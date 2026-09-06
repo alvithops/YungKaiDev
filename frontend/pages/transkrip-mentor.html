@@ -73,12 +73,12 @@
             if (c.status === 'dinilai') return `<td><span class="nb-badge ${warna(c.nilai)}">${c.nilai}</span></td>`;
             return `<td><div class="row"><input id="n-${c.p_id}" type="number" min="0" max="100" class="nb-input" style="width:76px" aria-label="Nilai" /><button class="nb-btn nb-btn-sm nb-btn-primary" data-simpan="${c.p_id}">✓</button></div></td>`;
           }).join('');
-          tr.innerHTML = `<td><b>${esc(s.nama)}</b></td>${sel2}<td>${s.rata2 !== null ? `<span class="nb-badge ${warna(s.rata2)}">${s.rata2}</span>` : '—'}</td>`;
+          tr.innerHTML = `<td><b>${esc(s.nama)}</b><br><span class="mono nb-hint">@${esc(s.username || '-')}</span></td>${sel2}<td>${s.rata2 !== null ? `<span class="nb-badge ${warna(s.rata2)}">${s.rata2}</span>` : '—'}</td>`;
           tb.appendChild(tr);
         });
         document.getElementById('bulanan').innerHTML = siswa.length ? siswa.map((s) => {
           const b = Object.entries(s.bulanan).sort().map(([bl, v]) => `<span class="nb-badge ${warna(v)}">${bl}: ${v}</span>`).join(' ') || '<span class="nb-hint">belum ada nilai</span>';
-          return `<div class="row mb"><b>${esc(s.nama)}</b><span style="flex:1"></span>${b}</div>`;
+          return `<div class="row mb"><b>${esc(s.nama)}</b><span class="mono nb-hint">@${esc(s.username || '-')}</span><span style="flex:1"></span>${b}</div>`;
         }).join('') : '<div class="nb-hint">—</div>';
       } catch (e) { toast(e.message, 'red'); }
     }

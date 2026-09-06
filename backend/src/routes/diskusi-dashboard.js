@@ -42,6 +42,10 @@ diskusi.get('/kelas/:id/diskusi', verifyToken, (req, res) => {
 diskusi.post('/kelas/:id/diskusi', verifyToken, (req, res) => {
   const { err, code, kelas } = cekKelas(req.params.id, req.user);
   if (err) return fail(res, err, code);
+  if (req.user.role === 'siswa') {
+    const st = db.prepare('SELECT status FROM kelas_member WHERE kelas_id = ? AND siswa_id = ?').get(kelas.id, req.user.id);
+    if (!st || st.status !== 'aktif') return fail(res, 'Kamu sedang keluar kelas. Masuk kembali untuk berdiskusi.', 403);
+  }
   const { isi, materi_id, parent_id } = req.body || {};
   if (!isi || !String(isi).trim()) return fail(res, 'Isi diskusi wajib diisi');
   const info = db.prepare('INSERT INTO diskusi (kelas_id, materi_id, user_id, parent_id, isi) VALUES (?,?,?,?,?)')
@@ -51,7 +55,15 @@ diskusi.post('/kelas/:id/diskusi', verifyToken, (req, res) => {
   return ok(res, row, 'Pesan terkirim', 201);
 });
 
-// DELETE /api/diskusi/:diskusiId (pemilik / mentor pemilik kelas)
+// DELETE /api/kelas/:id/diskusi (mentor pemilik) — hapus SELURUH chat kelas.
+// Satu tabel dipakai berdua → otomatis hilang juga di halaman siswa (sync via polling/BroadcastChannel).
+diskusi.delete('/kelas/:id/diskusi', verifyToken, requireRole('mentor'), (req, res) => {
+  const { err, code, kelas } = cekKelas(req.params.id, req.user);
+  if (err) return fail(res, err, code);
+  if (kelas.mentor_id !== req.user.id) return fail(res, 'Bukan kelas milikmu', 403);
+  const info = db.prepare('DELETE FROM diskusi WHERE kelas_id = ?').run(kelas.id);
+  return ok(res, { dihapus: info.changes }, `Seluruh chat dihapus (${info.changes} pesan)`);
+});
 diskusi.delete('/diskusi/:diskusiId', verifyToken, (req, res) => {
   const d = db.prepare('SELECT * FROM diskusi WHERE id = ?').get(req.params.diskusiId);
   if (!d) return fail(res, 'Diskusi tidak ditemukan', 404);
@@ -65,10 +77,13 @@ diskusi.delete('/diskusi/:diskusiId', verifyToken, (req, res) => {
 // GET /api/dashboard/mentor
 dash.get('/mentor', verifyToken, requireRole('mentor'), (req, res) => {
   const total_kelas = db.prepare('SELECT COUNT(*) c FROM kelas WHERE mentor_id = ?').get(req.user.id).c;
-  const total_siswa = db.prepare('SELECT COUNT(DISTINCT km.siswa_id) c FROM kelas_member km JOIN kelas k ON k.id = km.kelas_id WHERE k.mentor_id = ?').get(req.user.id).c;
+  // total siswa = SEMUA yang sudah daftar (auth_register), bukan cuma anggota kelasku
+  const total_siswa = db.prepare("SELECT COUNT(*) c FROM users WHERE role = 'siswa'").get().c;
   const tugas_belum_dinilai = db.prepare(`SELECT COUNT(*) c FROM pengumpulan_tugas p JOIN tugas t ON t.id = p.tugas_id JOIN kelas k ON k.id = t.kelas_id WHERE k.mentor_id = ? AND p.status = 'terkumpul'`).get(req.user.id).c;
   const kuis_aktif = db.prepare('SELECT COUNT(*) c FROM kuis q JOIN kelas k ON k.id = q.kelas_id WHERE k.mentor_id = ? AND (q.deadline IS NULL OR q.deadline > CURRENT_TIMESTAMP)').get(req.user.id).c;
-  return ok(res, { total_kelas, total_siswa, tugas_belum_dinilai, kuis_aktif });
+  // online = siswa terdaftar yang sedang membuka website (< 5 menit terakhir)
+  const online = db.prepare(`SELECT COUNT(*) c FROM users WHERE role = 'siswa' AND last_seen >= datetime('now', '-5 minutes')`).get().c;
+  return ok(res, { total_kelas, total_siswa, tugas_belum_dinilai, kuis_aktif, online });
 });
 
 // GET /api/dashboard/siswa
@@ -79,13 +94,12 @@ dash.get('/siswa', verifyToken, requireRole('siswa'), (req, res) => {
   return ok(res, { total_kelas, tugas_mendatang, nilai_terakhir });
 });
 
-// GET /api/dashboard/mentor/grafik — pendaftaran siswa per hari (14 hari, untuk grafik)
+// GET /api/dashboard/mentor/grafik — SISWA MENDAFTAR per hari (14 hari, dari auth_register)
 dash.get('/mentor/grafik', verifyToken, requireRole('mentor'), (req, res) => {
   const rows = db.prepare(`
-    SELECT substr(km.joined_at, 1, 10) AS tanggal, COUNT(*) AS pendaftar
-    FROM kelas_member km JOIN kelas k ON k.id = km.kelas_id
-    WHERE k.mentor_id = ? AND km.joined_at >= date('now', '-13 days')
-    GROUP BY tanggal ORDER BY tanggal`).all(req.user.id);
+    SELECT substr(created_at, 1, 10) AS tanggal, COUNT(*) AS pendaftar
+    FROM users WHERE role = 'siswa' AND created_at >= date('now', '-13 days')
+    GROUP BY tanggal ORDER BY tanggal`).all();
   const map = Object.fromEntries(rows.map((r) => [r.tanggal, r.pendaftar]));
   const out = [];
   for (let i = 13; i >= 0; i--) {
@@ -93,6 +107,36 @@ dash.get('/mentor/grafik', verifyToken, requireRole('mentor'), (req, res) => {
     out.push({ tanggal: t, pendaftar: map[t] || 0 });
   }
   return ok(res, out);
+});
+
+// GET /api/dashboard/mentor/aktivitas — feed + siswa aktif (mengikuti data siswa, live)
+dash.get('/mentor/aktivitas', verifyToken, requireRole('mentor'), (req, res) => {
+  const feed = db.prepare(`
+    SELECT * FROM (
+      SELECT 'tugas' AS jenis, p.submitted_at AS waktu, u.nama AS siapa, t.judul AS objek, k.nama_kelas, k.id AS kelas_id, p.status AS extra
+      FROM pengumpulan_tugas p JOIN tugas t ON t.id = p.tugas_id JOIN kelas k ON k.id = t.kelas_id JOIN users u ON u.id = p.siswa_id WHERE k.mentor_id = ?
+      UNION ALL
+      SELECT 'kuis', h.submitted_at, u.nama, q.judul, k.nama_kelas, k.id, ('skor ' || h.skor)
+      FROM hasil_kuis h JOIN kuis q ON q.id = h.kuis_id JOIN kelas k ON k.id = q.kelas_id JOIN users u ON u.id = h.siswa_id WHERE k.mentor_id = ?
+      UNION ALL
+      SELECT 'diskusi', d.created_at, u.nama, substr(d.isi, 1, 60), k.nama_kelas, k.id, NULL
+      FROM diskusi d JOIN kelas k ON k.id = d.kelas_id JOIN users u ON u.id = d.user_id WHERE k.mentor_id = ? AND u.role = 'siswa'
+      UNION ALL
+      SELECT 'gabung', km.joined_at, u.nama, k.nama_kelas, k.nama_kelas, k.id, NULL
+      FROM kelas_member km JOIN kelas k ON k.id = km.kelas_id JOIN users u ON u.id = km.siswa_id WHERE k.mentor_id = ?
+      UNION ALL
+      SELECT 'daftar', u.created_at, u.nama, ('@' || COALESCE(u.username, u.email)), NULL, NULL, NULL
+      FROM users u WHERE u.role = 'siswa' AND u.created_at >= datetime('now', '-3 days')
+    ) ORDER BY waktu DESC LIMIT 15`).all(req.user.id, req.user.id, req.user.id, req.user.id);
+  const aktif = db.prepare(`
+    SELECT u.id, u.nama,
+      (SELECT COUNT(*) FROM aktivitas a WHERE a.user_id = u.id) AS total,
+      u.last_seen AS terakhir,
+      CASE WHEN u.last_seen >= datetime('now', '-5 minutes') THEN 1 ELSE 0 END AS online
+    FROM users u
+    WHERE u.role = 'siswa'
+    ORDER BY online DESC, terakhir DESC LIMIT 8`).all();
+  return ok(res, { feed, aktif });
 });
 
 module.exports = { diskusi, dash };

@@ -15,11 +15,14 @@ Format: `{ success: bool, message: string, data: any }`
 - `GET /kelas/:id` (anggota/mentor) → detail + anggota + materi/tugas/kuis ringkas
 - `POST /kelas/join` (siswa) {kode_kelas} → gabung
 - `POST /kelas/:id/regenerate` (mentor) → kode baru
-- `DELETE /kelas/:id` (mentor pemilik) → hapus
+- `DELETE /kelas/:id` (mentor pemilik) → hapus kelas + CASCADE semua data (materi, tugas, pengumpulan, kuis, diskusi, anggota) + hapus file fisik di uploads/
 - `DELETE /kelas/:id/keluar` (siswa) → keluar
 - `GET /kelas/:id/anggota` (mentor) → daftar siswa
 
 ## Materi
+> Aturan akses: daftar modul/tugas/kuis/soal hanya untuk siswa berstatus `aktif`
+> (yang sedang keluar kelas mendapat 403 + arahan masuk kembali). Mentor bebas.
+> Semua modul/tugas/kuis punya `pertemuan` 1–14 (default 1, otomatis dijepit).
 - `GET /kelas/:id/materi` → list
 - `POST /kelas/:id/materi` (mentor, multipart) {judul, deskripsi, link_video, file} → materi
 - `PUT /materi/:materiId` (mentor) → update
@@ -59,14 +62,23 @@ Format: `{ success: bool, message: string, data: any }`
 - `GET /notifikasi/belum-baca` → {belum_baca}
 - `PUT /notifikasi/:id/baca`, `PUT /notifikasi/baca-semua`
 - `POST /kelas/:id/pengumuman` (mentor) {isi} → terkirim ke semua anggota
-- Otomatis: materi/tugas/kuis baru → anggota; nilai tersimpan → siswa ybs.
+- Otomatis: materi/tugas/kuis baru → anggota; nilai tersimpan → siswa ybs;
+  siswa daftar → semua mentor; login pertama siswa → semua mentor (sekali saja);
+  pemeriksa terjadwal tiap 5 mnt: tugas lewat deadline belum dikumpul → mentor (sekali per kasus).
 
 ## Moderasi: ban + permintaan akses (dari referensi)
 - `GET /kelas/:id/moderasi` (mentor) → {banned[], pending[]}
 - `POST /kelas/:id/ban` (mentor) {siswa_id, alasan} → kick + blokir + notif ke siswa
 - `DELETE /kelas/:id/ban/:siswaId` (mentor) → buka blokir
 - `PUT /permintaan-akses/:reqId` (mentor) {keputusan:'setuju'|'tolak'}
-- Join saat dibanned → 403 + otomatis buat permintaan pending.
+- Ban langsung tanpa alasan; login oleh akun ter-ban otomatis jadi permintaan pending + notif harian ke mentor.
+- `POST /blokir-permanen` (mentor) {siswa_id} → hapus akun + file + kunci email/username selamanya (login & daftar ditolak).
+- `GET /blokir-permanen`, `DELETE /blokir-permanen/:id` (buka blokir).
+- `DELETE /kelas/:id/keluar` (siswa) → status `keluar`, data TIDAK dihapus
+- `POST /kelas/:id/masuk` (siswa) → masuk kembali TANPA kode (khusus riwayat anggota)
+- Join via kode saat status keluar → reaktivasi otomatis (kode hanya untuk awal)
+- Aksi (kumpul/kuis/diskusi) wajib status `aktif`, baca materi tetap boleh
+- Dashboard mentor: total = siswa terdaftar, online = last_seen < 5 mnt, grafik = pendaftaran/hari
 
 ## Pengaturan, pengumuman global, pantau, rekap, aktivitas
 - `GET /pengaturan` → {sambutan, kontak_wa, kontak_ig, kontak_email}

@@ -57,7 +57,7 @@
             el.className = 'nb-card mb';
             el.innerHTML = `<div class="nb-card-body"><div class="row"><b>${esc(t.judul)}</b><span style="flex:1"></span>${st}</div>
               <div class="nb-hint">${esc(k.nama_kelas)}${t.deadline ? ' · ⏰ ' + new Date(t.deadline).toLocaleString('id-ID') : ''}</div>
-              <div class="row mt"><a class="nb-btn nb-btn-sm nb-btn-primary" href="kelas-detail.html?id=${k.id}#tugas">Kerjakan →</a></div></div>`;
+              <div class="row mt"><a class="nb-btn nb-btn-sm nb-btn-primary" href="kelas-siswa.html?id=${k.id}#tugas">Kerjakan →</a></div></div>`;
             box.appendChild(el);
           });
         }

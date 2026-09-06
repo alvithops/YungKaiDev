@@ -4,7 +4,7 @@
 //   node loadtest.js [--users 200] [--putaran 3] [--base http://localhost:3000]
 //   node loadtest.js --burst 1000   (1000x GET /api/health serentak)
 //
-// Prasyarat: server jalan + sudah `npm run seed` (akun demo + kelas id 1).
+// Prasyarat: server jalan. Akun + kelas uji dibuat otomatis bila belum ada.
 function argStr(nama, def) {
   const i = process.argv.findIndex((x) => x === nama || x.startsWith(nama + '='));
   if (i < 0) return def;
@@ -25,6 +25,23 @@ const USERS = arg('--users', 200);
 const PUTARAN = arg('--putaran', 3);
 const BURST = arg('--burst', 0);
 const GELOMBANG = arg('--gelombang', USERS); // batas serentak per gelombang (pola nyata)
+
+async function api(method, path, token, body) {
+  const r = await fetch(`${BASE}${path}`, {
+    method,
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return r.json();
+}
+
+async function pastikanAkun(nama, email, password, role) {
+  let j = await api('POST', '/api/auth/login', null, { email, password });
+  if (j.success) return j.data.token;
+  j = await api('POST', '/api/auth/register', null, { nama, email, password, role });
+  if (!j.success) throw new Error('Gagal siapkan akun uji ' + email + ': ' + j.message);
+  return j.data.token;
+}
 
 async function login(email, password) {
   const r = await fetch(`${BASE}/api/auth/login`, {
@@ -58,12 +75,12 @@ async function tembak(method, path, token, hasil) {
 }
 
 // 1 siswa virtual = 6 request khas pemakaian nyata (lazy: baru jalan saat dipanggil)
-function skenarioSiswa(token, h) {
+function skenarioSiswa(token, h, kid) {
   return [
     () => tembak('GET', '/api/kelas', token, h),
-    () => tembak('GET', '/api/kelas/1/materi', token, h),
-    () => tembak('GET', '/api/kelas/1/tugas', token, h),
-    () => tembak('GET', '/api/kelas/1/diskusi', token, h),
+    () => tembak('GET', `/api/kelas/${kid}/materi`, token, h),
+    () => tembak('GET', `/api/kelas/${kid}/tugas`, token, h),
+    () => tembak('GET', `/api/kelas/${kid}/diskusi`, token, h),
     () => tembak('GET', '/api/notifikasi/belum-baca', token, h),
     () => tembak('GET', '/api/dashboard/siswa', token, h),
   ];
@@ -81,9 +98,20 @@ async function lapor(nama, hasil, totalMs) {
 
 (async () => {
   console.log(`Uji beban → ${BASE}`);
-  const tSiswa = await login('siswa@demo.id', 'demo123');
-  const tMentor = await login('mentor@demo.id', 'demo123');
-  console.log('Login mentor + siswa OK (JWT stateless → tiap user mandiri)');
+  // siapkan akun + kelas uji sendiri (tidak tergantung akun demo)
+  const tMentor = await pastikanAkun('Mentor Uji', 'mentor-uji@load.tes', 'load12345', 'mentor');
+  const tSiswa = await pastikanAkun('Siswa Uji', 'siswa-uji@load.tes', 'load12345', 'siswa');
+  let kelasSaya = await api('GET', '/api/kelas', tMentor);
+  let kid;
+  if (kelasSaya.success && kelasSaya.data.length) {
+    kid = kelasSaya.data[0].id;
+  } else {
+    const buat = await api('POST', '/api/kelas', tMentor, { nama_kelas: 'Kelas Uji Beban', deskripsi: 'otomatis' });
+    if (!buat.success) throw new Error('Gagal buat kelas uji: ' + buat.message);
+    kid = buat.data.id;
+  }
+  await api('POST', '/api/kelas/join', tSiswa, { kode_kelas: (await api('GET', `/api/kelas/${kid}`, tMentor)).data.kode_kelas });
+  console.log(`Akun uji siap (kelas id ${kid}). JWT stateless → tiap user mandiri`);
 
   if (BURST > 0) {
     const h = { ok: 0, gagal: 0, cat: [], contohGagal: [] };
@@ -99,7 +127,7 @@ async function lapor(nama, hasil, totalMs) {
     const batch = [];
     for (let i = 0; i < USERS; i++) {
       if (i % 10 === 0) batch.push(() => tembak('GET', '/api/dashboard/mentor', tMentor, h)); // 10% peran mentor
-      batch.push(...skenarioSiswa(tSiswa, h));
+      batch.push(...skenarioSiswa(tSiswa, h, kid));
     }
     // kirim per gelombang agar mirip pola nyata (tidak semua klik 1 milidetik)
     for (let g = 0; g < batch.length; g += GELOMBANG) {

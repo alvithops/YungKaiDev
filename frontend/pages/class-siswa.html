@@ -62,9 +62,11 @@
           el.innerHTML = `<div class="nb-card-header ${['yellow', 'blue', 'pink', 'green'][i % 4]}">${esc(k.nama_kelas)}</div>
             <div class="nb-card-body"><div class="mono nb-hint">${esc(k.kode_kelas)} · ${esc(k.mentor_nama || '')}</div>
             <p class="nb-hint">${esc(k.deskripsi || '')}</p>
-            <div class="row"><a class="nb-btn nb-btn-sm nb-btn-dark" href="kelas-detail.html?id=${k.id}#materi">📖 Modul</a>
-            <a class="nb-btn nb-btn-sm nb-btn-blue" href="kelas-detail.html?id=${k.id}#tugas">📥 Tugas</a>
-            <a class="nb-btn nb-btn-sm nb-btn-pink" href="kelas-detail.html?id=${k.id}#kuis">📝 Kuis</a></div></div>`;
+            <div class="row mb"><span class="nb-badge ${k.status_saya === 'aktif' ? 'green' : 'yellow'}">${k.status_saya === 'aktif' ? '● di dalam kelas' : '○ sedang keluar'}</span><span style="flex:1"></span>
+            ${k.status_saya === 'aktif' ? `<button class="nb-btn nb-btn-sm" data-keluar="${k.id}">Keluar Kelas</button>` : `<button class="nb-btn nb-btn-sm nb-btn-primary" data-masuk="${k.id}">Masuk Kembali →</button>`}</div>
+            <div class="row"><a class="nb-btn nb-btn-sm nb-btn-dark" href="kelas-siswa.html?id=${k.id}#materi">📖 Modul</a>
+            <a class="nb-btn nb-btn-sm nb-btn-blue" href="kelas-siswa.html?id=${k.id}#tugas">📥 Tugas</a>
+            <a class="nb-btn nb-btn-sm nb-btn-pink" href="kelas-siswa.html?id=${k.id}#kuis">📝 Kuis</a></div></div>`;
           box.appendChild(el);
         });
       } catch (e) { toast(e.message, 'red'); }
@@ -77,6 +79,18 @@
         kode.value = ''; muat();
       } catch (err) {
         document.getElementById('err').innerHTML = `<div class="nb-alert nb-alert-red mb">⚠ ${esc(err.message)}</div>`;
+      }
+    });
+    document.addEventListener('click', async (e) => {
+      const out = e.target.closest('[data-keluar]');
+      if (out && confirm('Keluar kelas? Kelas tetap tersimpan dan bisa dimasuki lagi tanpa kode.')) {
+        try { await apiFetch(`/kelas/${out.dataset.keluar}/keluar`, { method: 'DELETE' }); toast('Keluar kelas. Masuk lagi kapan saja tanpa kode.', 'yellow'); muat(); }
+        catch (err) { toast(err.message, 'red'); }
+      }
+      const inl = e.target.closest('[data-masuk]');
+      if (inl) {
+        try { await apiFetch(`/kelas/${inl.dataset.masuk}/masuk`, { method: 'POST' }); toast('Masuk kembali ✓', 'green'); muat(); }
+        catch (err) { toast(err.message, 'red'); }
       }
     });
     dengarRefresh(muat);

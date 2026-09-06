@@ -55,7 +55,7 @@
       try {
         const kelas = await apiFetch('/kelas/join', { method: 'POST', body: { kode_kelas: kode.value } });
         toast('Berhasil gabung: ' + kelas.nama_kelas, 'green');
-        setTimeout(() => location.href = 'kelas-detail.html?id=' + kelas.id, 800);
+        setTimeout(() => location.href = 'kelas-siswa.html?id=' + kelas.id, 800);
       } catch (err) {
         document.getElementById('err').innerHTML = `<div class="nb-alert nb-alert-red mb">⚠ ${esc(err.message)}</div>`;
       } finally { btn.disabled = false; }

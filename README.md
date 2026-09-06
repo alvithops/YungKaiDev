@@ -48,17 +48,14 @@ Kenapa stack ini?
 ```bash
 cd /home/payung/pkl-web/backend
 npm install
-npm run seed   # akun demo + kelas contoh (sekali saja)
+npm run seed   # pengaturan awal (sekali saja)
 npm start
 ```
 
 Buka **http://localhost:3000** — frontend + API langsung jalan (database SQLite otomatis di `backend/data/elearning.db`).
 
-| Akun demo | Login | Password |
-|---|---|---|
-| Mentor | `mentor@demo.id` | `demo123` |
-| Siswa | `siswa@demo.id` | `demo123` |
-| Kode kelas demo | `WEB-7X2K9A` | — |
+Langsung daftar: **Daftar sebagai Mentor** → buat kelas → bagikan kode.
+**Daftar sebagai Siswa** → gabung via kode → kerjakan tugas.
 
 Alur coba: login mentor → buat kelas → copy kode → logout → login siswa → Gabung via Kode → kumpul tugas (file/kode) → login mentor → nilai → siswa lihat nilai.
 

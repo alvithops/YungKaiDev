@@ -19,10 +19,14 @@ function cekAkses(kelasId, user) {
   return { kelas };
 }
 
-// GET /api/kelas/:id/materi
+// GET /api/kelas/:id/materi — hanya yang sedang MASUK kelas
 router.get('/kelas/:id/materi', verifyToken, (req, res) => {
   const { err, code } = cekAkses(req.params.id, req.user);
   if (err) return fail(res, err, code);
+  if (req.user.role === 'siswa') {
+    const st = db.prepare('SELECT status FROM kelas_member WHERE kelas_id = ? AND siswa_id = ?').get(req.params.id, req.user.id);
+    if (!st || st.status !== 'aktif') return fail(res, 'Masuk kembali ke kelas untuk mengakses modul.', 403);
+  }
   const rows = db.prepare('SELECT * FROM materi WHERE kelas_id = ? ORDER BY urutan, id').all(req.params.id);
   return ok(res, rows);
 });
@@ -34,11 +38,12 @@ router.post('/kelas/:id/materi', verifyToken, requireRole('mentor'), (req, res) 
     const kelas = db.prepare('SELECT * FROM kelas WHERE id = ?').get(req.params.id);
     if (!kelas) return fail(res, 'Kelas tidak ditemukan', 404);
     if (kelas.mentor_id !== req.user.id) return fail(res, 'Bukan kelas milikmu', 403);
-    const { judul, deskripsi, link_video, urutan } = req.body || {};
+    const { judul, deskripsi, link_video, urutan, pertemuan } = req.body || {};
     if (!judul) return fail(res, 'Judul wajib diisi');
+    const pert = Math.min(14, Math.max(1, Number(pertemuan) || 1));
     const file_path = req.file ? `/uploads/materi/${req.file.filename}` : null;
-    const info = db.prepare('INSERT INTO materi (kelas_id, judul, deskripsi, file_path, link_video, urutan) VALUES (?,?,?,?,?,?)')
-      .run(kelas.id, String(judul).trim(), (deskripsi || '').trim(), file_path, (link_video || '').trim() || null, Number(urutan) || 0);
+    const info = db.prepare('INSERT INTO materi (kelas_id, judul, deskripsi, file_path, link_video, urutan, pertemuan) VALUES (?,?,?,?,?,?,?)')
+      .run(kelas.id, String(judul).trim(), (deskripsi || '').trim(), file_path, (link_video || '').trim() || null, Number(urutan) || 0, pert);
     notifyKelas(kelas.id, `📖 Materi baru: ${String(judul).trim()}`, `Kelas ${kelas.nama_kelas}`);
     return ok(res, db.prepare('SELECT * FROM materi WHERE id = ?').get(info.lastInsertRowid), 'Materi ditambahkan', 201);
   });
@@ -50,9 +55,9 @@ router.put('/materi/:materiId', verifyToken, requireRole('mentor'), (req, res) =
   if (!m) return fail(res, 'Materi tidak ditemukan', 404);
   const kelas = db.prepare('SELECT * FROM kelas WHERE id = ?').get(m.kelas_id);
   if (kelas.mentor_id !== req.user.id) return fail(res, 'Bukan kelas milikmu', 403);
-  const { judul, deskripsi, link_video, urutan } = req.body || {};
-  db.prepare('UPDATE materi SET judul = COALESCE(?, judul), deskripsi = COALESCE(?, deskripsi), link_video = COALESCE(?, link_video), urutan = COALESCE(?, urutan) WHERE id = ?')
-    .run(judul ?? null, deskripsi ?? null, link_video ?? null, urutan ?? null, m.id);
+  const { judul, deskripsi, link_video, urutan, pertemuan } = req.body || {};
+  db.prepare('UPDATE materi SET judul = COALESCE(?, judul), deskripsi = COALESCE(?, deskripsi), link_video = COALESCE(?, link_video), urutan = COALESCE(?, urutan), pertemuan = COALESCE(?, pertemuan) WHERE id = ?')
+    .run(judul ?? null, deskripsi ?? null, link_video ?? null, urutan ?? null, pertemuan ? Math.min(14, Math.max(1, Number(pertemuan))) : null, m.id);
   return ok(res, db.prepare('SELECT * FROM materi WHERE id = ?').get(m.id), 'Materi diperbarui');
 });
 
