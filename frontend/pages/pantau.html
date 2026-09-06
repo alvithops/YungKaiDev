@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pantau Siswa — Mentor</title>
+  <link rel="stylesheet" href="../css/neo-brutal.css" />
+</head>
+<body data-page="pantau" data-require="mentor">
+<div class="app" id="app">
+  <aside class="sidebar" aria-label="Navigasi utama">
+    <div class="brand"><span class="brand-mark">E</span> E-LEARNING</div>
+    <nav class="nb-nav">
+      <div class="nb-navlabel">Mentor</div>
+      <a class="nb-navlink" data-nav="dashboard" href="dashboard-mentor.html">📊 Dashboard</a>
+      <a class="nb-navlink" data-nav="class" href="class-mentor.html">📚 Class</a>
+      <a class="nb-navlink" data-nav="transkrip" href="transkrip-mentor.html">🎓 Transkrip</a>
+      <a class="nb-navlink" data-nav="announcement" href="announcement.html">📢 Announcement</a>
+      <a class="nb-navlink" data-nav="pantau" href="pantau.html">👁 Pantau Siswa</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="profile-chip"><div class="avatar" data-profile-avatar>?</div><div><b data-profile-nama>...</b><br><span class="nb-badge dark" style="font-size:10px" data-profile-role>MENTOR</span></div></div>
+      <button class="nb-btn nb-btn-sm nb-btn-block" data-logout>Keluar</button>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+  <div class="main-col">
+    <header class="topbar">
+      <button id="btnHamburger" class="nb-btn nb-btn-sm hamburger" aria-expanded="false" aria-label="Buka menu">☰</button>
+      <h1 class="page-title">Pantau Siswa (Live)</h1>
+    </header>
+    <main class="content">
+      <div class="nb-card mb">
+        <div class="nb-card-header blue">🧑‍🎓 SISWA AKTIF <span class="nb-badge dark" id="count-siswa">…</span></div>
+        <div class="nb-card-body" id="list-siswa"><div class="nb-hint">Memuat...</div></div>
+      </div>
+      <div class="grid-2">
+        <div class="nb-card"><div class="nb-card-header yellow">📩 PERMINTAAN AKSES</div><div class="nb-card-body" id="list-minta"><div class="nb-hint">Memuat...</div></div></div>
+        <div class="nb-card"><div class="nb-card-header pink">⛔ DIBLOKIR</div><div class="nb-card-body" id="list-banned"><div class="nb-hint">Memuat...</div></div></div>
+      </div>
+    </main>
+  </div>
+</div>
+<script src="../js/config.js"></script>
+<script src="../js/realtime.js"></script>
+<script src="../js/api.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/layout.js"></script>
+<script>
+  (async () => {
+    await requireAuth();
+    async function muat() {
+      try {
+        const { kelas, siswa, banned, pending } = await apiFetch('/pantau');
+        document.getElementById('count-siswa').textContent = siswa.length + ' aktif';
+        const box = document.getElementById('list-siswa');
+        box.innerHTML = siswa.length ? '' : `<div class="nb-alert nb-alert-yellow">Belum ada siswa di kelasmu.</div>`;
+        for (const s of siswa) {
+          // anggota per kelas (untuk tombol pantau + ban yang tepat sasaran)
+          const el = document.createElement('div');
+          el.className = 'nb-card mb';
+          el.innerHTML = `<div class="nb-card-body"><div class="row"><b>${esc(s.nama)}</b><span class="nb-hint">${esc(s.email)}</span></div>
+            <div class="row mt" id="anggota-${s.id}"><div class="nb-hint">Memuat kelas...</div></div></div>`;
+          box.appendChild(el);
+          muatAnggota(s.id, kelas);
+        }
+        document.getElementById('list-minta').innerHTML = pending.length ? pending.map((r) => `
+          <div class="row mb"><b>${esc(r.nama)}</b><span class="nb-badge blue">${esc(r.nama_kelas)}</span><span style="flex:1"></span>
+          <button class="nb-btn nb-btn-sm nb-btn-green" data-setuju="${r.id}">Setujui</button>
+          <button class="nb-btn nb-btn-sm nb-btn-danger" data-tolak="${r.id}">Tolak</button></div>`).join('')
+          : `<div class="nb-hint">Tidak ada permintaan.</div>`;
+        document.getElementById('list-banned').innerHTML = banned.length ? banned.map((b) => `
+          <div class="row mb"><b>${esc(b.nama)}</b><span class="nb-badge pink">${esc(b.nama_kelas)}</span><span style="flex:1"></span>
+          <button class="nb-btn nb-btn-sm" data-unban="${b.siswa_id}" data-kelas="${b.kelas_id}">Buka Blokir</button></div>`).join('')
+          : `<div class="nb-hint">Tidak ada yang diblokir.</div>`;
+      } catch (e) { toast(e.message, 'red'); }
+    }
+    async function muatAnggota(siswaId, kelasList) {
+      const box = document.getElementById('anggota-' + siswaId);
+      const baris = [];
+      for (const k of kelasList) {
+        try {
+          const anggota = await apiFetch(`/kelas/${k.id}/anggota`);
+          if (anggota.some((a) => a.id === siswaId)) {
+            baris.push(`<span class="nb-badge blue">${esc(k.nama_kelas)}</span>
+              <a class="nb-btn nb-btn-sm" href="kelas-detail.html?id=${k.id}&view=siswa">👁 Pantau</a>
+              <button class="nb-btn nb-btn-sm nb-btn-danger" data-ban="${siswaId}" data-kelas="${k.id}" data-nama="${esc(anggota.find((a) => a.id === siswaId).nama)}">Kick/Ban</button>`);
+          }
+        } catch {}
+      }
+      box.innerHTML = baris.length ? baris.join(' ') : '<span class="nb-hint">tidak di kelas mana pun</span>';
+    }
+    document.addEventListener('click', async (e) => {
+      const q = (s) => e.target.closest(s);
+      let b;
+      if ((b = q('[data-ban]'))) {
+        const alasan = prompt(`Kick/ban ${b.dataset.nama}? Alasan:`, '');
+        if (alasan === null) return;
+        try { await apiFetch(`/kelas/${b.dataset.kelas}/ban`, { method: 'POST', body: { siswa_id: b.dataset.ban, alasan } }); toast('Diblokir', 'green'); muat(); }
+        catch (err) { toast(err.message, 'red'); }
+      }
+      if ((b = q('[data-unban]')) && confirm('Buka blokir?')) {
+        try { await apiFetch(`/kelas/${b.dataset.kelas}/ban/${b.dataset.unban}`, { method: 'DELETE' }); toast('Blokir dibuka', 'green'); muat(); }
+        catch (err) { toast(err.message, 'red'); }
+      }
+      if ((b = q('[data-setuju]'))) {
+        try { await apiFetch(`/permintaan-akses/${b.dataset.setuju}`, { method: 'PUT', body: { keputusan: 'setuju' } }); toast('Disetujui ✓', 'green'); muat(); }
+        catch (err) { toast(err.message, 'red'); }
+      }
+      if ((b = q('[data-tolak]'))) {
+        try { await apiFetch(`/permintaan-akses/${b.dataset.tolak}`, { method: 'PUT', body: { keputusan: 'tolak' } }); toast('Ditolak', 'yellow'); muat(); }
+        catch (err) { toast(err.message, 'red'); }
+      }
+    });
+    dengarRefresh(muat);
+    muat();
+  })();
+</script>
+</body>
+</html>

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tugas Saya — Siswa</title>
+  <link rel="stylesheet" href="../css/neo-brutal.css" />
+</head>
+<body data-page="tugas" data-require="siswa">
+<div class="app" id="app">
+  <aside class="sidebar" aria-label="Navigasi utama">
+    <div class="brand"><span class="brand-mark">E</span> E-LEARNING</div>
+    <nav class="nb-nav">
+      <div class="nb-navlabel">Siswa</div>
+      <a class="nb-navlink" data-nav="dashboard" href="dashboard-siswa.html">🏠 Dashboard</a>
+      <a class="nb-navlink" data-nav="class" href="class-siswa.html">📚 Class</a>
+      <a class="nb-navlink" data-nav="tugas" href="tugas-saya.html">📝 Tugas Saya</a>
+      <a class="nb-navlink" data-nav="transkrip" href="transkrip.html">🎓 Transkrip</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="profile-chip"><div class="avatar" data-profile-avatar style="background:var(--pink)">?</div><div><b data-profile-nama>...</b><br><span class="nb-badge blue" style="font-size:10px" data-profile-role>SISWA</span></div></div>
+      <button class="nb-btn nb-btn-sm nb-btn-block" data-logout>Keluar</button>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+  <div class="main-col">
+    <header class="topbar">
+      <button id="btnHamburger" class="nb-btn nb-btn-sm hamburger" aria-expanded="false" aria-label="Buka menu">☰</button>
+      <h1 class="page-title">Tugas Saya</h1>
+    </header>
+    <main class="content">
+      <div class="nb-alert nb-alert-blue mb">Kirim jawaban teks/kode atau unggah file dari halaman kelas masing-masing.</div>
+      <div id="list-tugas"><div class="nb-hint">Memuat...</div></div>
+    </main>
+  </div>
+</div>
+<script src="../js/config.js"></script>
+<script src="../js/realtime.js"></script>
+<script src="../js/api.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/layout.js"></script>
+<script>
+  (async () => {
+    await requireAuth();
+    async function muat() {
+      const box = document.getElementById('list-tugas');
+      try {
+        const kelasList = await apiFetch('/kelas');
+        box.innerHTML = kelasList.length ? '' : `<div class="nb-alert nb-alert-yellow">Belum ikut kelas.</div>`;
+        for (const k of kelasList) {
+          const tugas = await apiFetch(`/kelas/${k.id}/tugas`).catch(() => []);
+          tugas.forEach((t) => {
+            const st = !t.saya ? `<span class="nb-badge red">Belum kumpul</span>`
+              : t.saya.status === 'dinilai' ? `<span class="nb-badge green">✓ ${t.saya.nilai}</span>`
+              : `<span class="nb-badge yellow">● Terkumpul</span>`;
+            const el = document.createElement('div');
+            el.className = 'nb-card mb';
+            el.innerHTML = `<div class="nb-card-body"><div class="row"><b>${esc(t.judul)}</b><span style="flex:1"></span>${st}</div>
+              <div class="nb-hint">${esc(k.nama_kelas)}${t.deadline ? ' · ⏰ ' + new Date(t.deadline).toLocaleString('id-ID') : ''}</div>
+              <div class="row mt"><a class="nb-btn nb-btn-sm nb-btn-primary" href="kelas-detail.html?id=${k.id}#tugas">Kerjakan →</a></div></div>`;
+            box.appendChild(el);
+          });
+        }
+        if (!box.children.length) box.innerHTML = `<div class="nb-alert nb-alert-green">✓ Tidak ada tugas. Santai!</div>`;
+      } catch (e) { toast(e.message, 'red'); }
+    }
+    dengarRefresh(muat);
+    muat();
+  })();
+</script>
+</body>
+</html>

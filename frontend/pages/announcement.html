@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Announcement — Mentor</title>
+  <link rel="stylesheet" href="../css/neo-brutal.css" />
+</head>
+<body data-page="announcement" data-require="mentor">
+<div class="app" id="app">
+  <aside class="sidebar" aria-label="Navigasi utama">
+    <div class="brand"><span class="brand-mark">E</span> E-LEARNING</div>
+    <nav class="nb-nav">
+      <div class="nb-navlabel">Mentor</div>
+      <a class="nb-navlink" data-nav="dashboard" href="dashboard-mentor.html">📊 Dashboard</a>
+      <a class="nb-navlink" data-nav="class" href="class-mentor.html">📚 Class</a>
+      <a class="nb-navlink" data-nav="transkrip" href="transkrip-mentor.html">🎓 Transkrip</a>
+      <a class="nb-navlink" data-nav="announcement" href="announcement.html">📢 Announcement</a>
+      <a class="nb-navlink" data-nav="pantau" href="pantau.html">👁 Pantau Siswa</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="profile-chip"><div class="avatar" data-profile-avatar>?</div><div><b data-profile-nama>...</b><br><span class="nb-badge dark" style="font-size:10px" data-profile-role>MENTOR</span></div></div>
+      <button class="nb-btn nb-btn-sm nb-btn-block" data-logout>Keluar</button>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+  <div class="main-col">
+    <header class="topbar">
+      <button id="btnHamburger" class="nb-btn nb-btn-sm hamburger" aria-expanded="false" aria-label="Buka menu">☰</button>
+      <h1 class="page-title">Announcement Sistem</h1>
+    </header>
+    <main class="content" style="max-width:760px">
+      <div class="nb-card mb">
+        <div class="nb-card-header pink">+ BUAT PENGUMUMAN</div>
+        <div class="nb-card-body">
+          <form id="form-pengumuman">
+            <label class="nb-label" for="a_judul">Judul</label>
+            <input id="a_judul" class="nb-input" required placeholder="cth: Ujian Tengah Semester" />
+            <label class="nb-label mt" for="a_isi">Isi</label>
+            <textarea id="a_isi" class="nb-textarea" rows="3" required placeholder="Isi pengumuman untuk seluruh siswa..."></textarea>
+            <button class="nb-btn nb-btn-primary nb-btn-block mt" type="submit">Terbitkan → (masuk inbox semua siswa)</button>
+          </form>
+        </div>
+      </div>
+      <div id="list-pengumuman"><div class="nb-hint">Memuat...</div></div>
+    </main>
+  </div>
+</div>
+<script src="../js/config.js"></script>
+<script src="../js/realtime.js"></script>
+<script src="../js/api.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/layout.js"></script>
+<script>
+  (async () => {
+    await requireAuth();
+    async function muat() {
+      try {
+        const list = await apiFetch('/pengumuman');
+        const box = document.getElementById('list-pengumuman');
+        box.innerHTML = list.length ? '' : `<div class="nb-alert nb-alert-yellow">Belum ada pengumuman.</div>`;
+        list.forEach((p) => {
+          const el = document.createElement('div');
+          el.className = 'nb-card mb';
+          el.innerHTML = `<div class="nb-card-header yellow"><span>${esc(p.judul)}</span><button class="nb-btn nb-btn-sm nb-btn-danger" data-hapus="${p.id}">Hapus</button></div>
+            <div class="nb-card-body"><div>${esc(p.isi)}</div><div class="nb-hint mt">oleh ${esc(p.mentor_nama)} · ${new Date(p.created_at).toLocaleString('id-ID')}</div></div>`;
+          box.appendChild(el);
+        });
+      } catch (e) { toast(e.message, 'red'); }
+    }
+    document.getElementById('form-pengumuman').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        await apiFetch('/pengumuman', { method: 'POST', body: { judul: a_judul.value, isi: a_isi.value } });
+        toast('📢 Pengumuman diterbitkan', 'green'); e.target.reset(); muat();
+      } catch (err) { toast(err.message, 'red'); }
+    });
+    document.addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-hapus]');
+      if (b && confirm('Hapus pengumuman ini?')) {
+        try { await apiFetch(`/pengumuman/${b.dataset.hapus}`, { method: 'DELETE' }); toast('Dihapus', 'green'); muat(); }
+        catch (err) { toast(err.message, 'red'); }
+      }
+    });
+    dengarRefresh(muat);
+    muat();
+  })();
+</script>
+</body>
+</html>

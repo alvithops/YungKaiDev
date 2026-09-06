@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Transkrip Nilai — Mentor</title>
+  <link rel="stylesheet" href="../css/neo-brutal.css" />
+</head>
+<body data-page="transkrip" data-require="mentor">
+<div class="app" id="app">
+  <aside class="sidebar" aria-label="Navigasi utama">
+    <div class="brand"><span class="brand-mark">E</span> E-LEARNING</div>
+    <nav class="nb-nav">
+      <div class="nb-navlabel">Mentor</div>
+      <a class="nb-navlink" data-nav="dashboard" href="dashboard-mentor.html">📊 Dashboard</a>
+      <a class="nb-navlink" data-nav="class" href="class-mentor.html">📚 Class</a>
+      <a class="nb-navlink" data-nav="transkrip" href="transkrip-mentor.html">🎓 Transkrip</a>
+      <a class="nb-navlink" data-nav="announcement" href="announcement.html">📢 Announcement</a>
+      <a class="nb-navlink" data-nav="pantau" href="pantau.html">👁 Pantau Siswa</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="profile-chip"><div class="avatar" data-profile-avatar>?</div><div><b data-profile-nama>...</b><br><span class="nb-badge dark" style="font-size:10px" data-profile-role>MENTOR</span></div></div>
+      <button class="nb-btn nb-btn-sm nb-btn-block" data-logout>Keluar</button>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+  <div class="main-col">
+    <header class="topbar">
+      <button id="btnHamburger" class="nb-btn nb-btn-sm hamburger" aria-expanded="false" aria-label="Buka menu">☰</button>
+      <h1 class="page-title">Transkrip Nilai</h1>
+      <span style="flex:1"></span>
+      <select id="pilih-kelas" class="nb-select" style="max-width:220px" aria-label="Pilih kelas"></select>
+    </header>
+    <main class="content">
+      <div class="nb-alert nb-alert-blue mb">Pilih kelas → beri nilai per siswa per tugas (1 tugas = 1 pertemuan). Warna: <span class="nb-badge green">≥80</span> <span class="nb-badge yellow">50–79</span> <span class="nb-badge red">&lt;50</span></div>
+      <div class="nb-card">
+        <div class="nb-card-header dark"><span id="judul-rekap">REKAP</span></div>
+        <div class="nb-card-body" style="padding:0"><div class="nb-table-wrap" style="border:none;box-shadow:none"><table class="nb-table"><thead id="head-rekap"></thead><tbody id="body-rekap"></tbody></table></div></div>
+      </div>
+      <div class="nb-card mt"><div class="nb-card-header yellow">REKAP RATA-RATA BULANAN</div><div class="nb-card-body" id="bulanan"><div class="nb-hint">Pilih kelas dulu.</div></div></div>
+    </main>
+  </div>
+</div>
+<script src="../js/config.js"></script>
+<script src="../js/realtime.js"></script>
+<script src="../js/api.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/layout.js"></script>
+<script>
+  (async () => {
+    await requireAuth();
+    const sel = document.getElementById('pilih-kelas');
+    const warna = (n) => n === null ? 'yellow' : n >= 80 ? 'green' : n >= 50 ? 'yellow' : 'red';
+    try {
+      const list = await apiFetch('/kelas');
+      sel.innerHTML = list.map((k) => `<option value="${k.id}">${esc(k.nama_kelas)} (${esc(k.kode_kelas)})</option>`).join('') || '<option value="">— belum ada kelas —</option>';
+      if (list.length) muatRekap(list[0].id);
+    } catch (e) { toast(e.message, 'red'); }
+    sel.addEventListener('change', () => sel.value && muatRekap(sel.value));
+
+    async function muatRekap(kelasId) {
+      try {
+        const { kelas, tugas, siswa } = await apiFetch(`/kelas/${kelasId}/rekap`);
+        document.getElementById('judul-rekap').textContent = 'REKAP — ' + kelas.nama_kelas.toUpperCase();
+        document.getElementById('head-rekap').innerHTML = `<tr><th>Siswa</th>${tugas.map((t) => `<th>${esc(t.judul)}</th>`).join('')}<th>Rata²</th></tr>`;
+        const tb = document.getElementById('body-rekap');
+        tb.innerHTML = siswa.length ? '' : `<tr><td colspan="${tugas.length + 2}">Belum ada siswa.</td></tr>`;
+        siswa.forEach((s) => {
+          const tr = document.createElement('tr');
+          const sel2 = tugas.map((t) => {
+            const c = s.nilai[t.id];
+            if (!c) return '<td>—</td>';
+            if (c.status === 'dinilai') return `<td><span class="nb-badge ${warna(c.nilai)}">${c.nilai}</span></td>`;
+            return `<td><div class="row"><input id="n-${c.p_id}" type="number" min="0" max="100" class="nb-input" style="width:76px" aria-label="Nilai" /><button class="nb-btn nb-btn-sm nb-btn-primary" data-simpan="${c.p_id}">✓</button></div></td>`;
+          }).join('');
+          tr.innerHTML = `<td><b>${esc(s.nama)}</b></td>${sel2}<td>${s.rata2 !== null ? `<span class="nb-badge ${warna(s.rata2)}">${s.rata2}</span>` : '—'}</td>`;
+          tb.appendChild(tr);
+        });
+        document.getElementById('bulanan').innerHTML = siswa.length ? siswa.map((s) => {
+          const b = Object.entries(s.bulanan).sort().map(([bl, v]) => `<span class="nb-badge ${warna(v)}">${bl}: ${v}</span>`).join(' ') || '<span class="nb-hint">belum ada nilai</span>';
+          return `<div class="row mb"><b>${esc(s.nama)}</b><span style="flex:1"></span>${b}</div>`;
+        }).join('') : '<div class="nb-hint">—</div>';
+      } catch (e) { toast(e.message, 'red'); }
+    }
+    document.addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-simpan]');
+      if (!b) return;
+      const nilai = Number(document.getElementById('n-' + b.dataset.simpan).value);
+      try { await apiFetch(`/pengumpulan/${b.dataset.simpan}/nilai`, { method: 'PUT', body: { nilai } }); toast('Nilai tersimpan ✓', 'green'); muatRekap(sel.value); }
+      catch (err) { toast(err.message, 'red'); }
+    });
+    dengarRefresh(() => sel.value && muatRekap(sel.value));
+  })();
+</script>
+</body>
+</html>

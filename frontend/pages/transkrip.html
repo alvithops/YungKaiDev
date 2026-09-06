@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Transkrip Nilai — E-Learning PKL</title>
+  <link rel="stylesheet" href="../css/neo-brutal.css" />
+</head>
+<body data-page="transkrip" data-require="siswa">
+<div class="app" id="app">
+  <aside class="sidebar" aria-label="Navigasi utama">
+    <div class="brand"><span class="brand-mark">E</span> E-LEARNING</div>
+    <nav class="nb-nav">
+      <div class="nb-navlabel">Siswa</div>
+      <a class="nb-navlink" data-nav="dashboard" href="dashboard-siswa.html">🏠 Dashboard</a>
+      <a class="nb-navlink" data-nav="gabung" href="gabung-kelas.html">🔑 Gabung Kelas</a>
+      <a class="nb-navlink" data-nav="transkrip" href="transkrip.html">🎓 Transkrip</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="profile-chip"><div class="avatar" data-profile-avatar style="background:var(--pink)">?</div><div><b data-profile-nama>...</b><br><span class="nb-badge blue" style="font-size:10px" data-profile-role>SISWA</span></div></div>
+      <button class="nb-btn nb-btn-sm nb-btn-block" data-logout>Keluar</button>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+  <div class="main-col">
+    <header class="topbar">
+      <button id="btnHamburger" class="nb-btn nb-btn-sm hamburger" aria-expanded="false" aria-label="Buka menu">☰</button>
+      <h1 class="page-title">Transkrip Nilai</h1>
+      <span style="flex:1"></span>
+      <button class="nb-btn nb-btn-sm nb-btn-primary" id="btn-unduh">⬇ Unduh .txt</button>
+    </header>
+    <main class="content">
+      <div class="grid-stats" style="grid-template-columns:repeat(3,1fr)">
+        <div class="nb-card"><div class="nb-card-header green">RATA-RATA TUGAS</div><div class="nb-card-body"><div class="stat-num" id="rata-tugas">…</div></div></div>
+        <div class="nb-card"><div class="nb-card-header blue">RATA-RATA KUIS</div><div class="nb-card-body"><div class="stat-num" id="rata-kuis">…</div></div></div>
+        <div class="nb-card"><div class="nb-card-header yellow">RATA-RATA TOTAL</div><div class="nb-card-body"><div class="stat-num" id="rata-total">…</div></div></div>
+      </div>
+      <div class="nb-card mb"><div class="nb-card-header blue">📞 KONTAK & BANTUAN</div><div class="nb-card-body row" id="kontak-box"><div class="nb-hint">Memuat...</div></div></div>
+      <div id="isi-transkrip"><div class="nb-hint">Memuat...</div></div>
+    </main>
+  </div>
+</div>
+<script src="../js/config.js"></script>
+<script src="../js/realtime.js"></script>
+<script src="../js/api.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/layout.js"></script>
+<script>
+  (async () => {
+    const user = await requireAuth();
+    const semuaTugas = [], semuaKuis = [];
+    const box = document.getElementById('isi-transkrip');
+    try {
+      const kelasList = await apiFetch('/kelas');
+      if (!kelasList.length) box.innerHTML = `<div class="nb-alert nb-alert-yellow">Belum ikut kelas mana pun.</div>`;
+      box.innerHTML = '';
+      for (const k of kelasList) {
+        const [tugas, kuis] = await Promise.all([
+          apiFetch(`/kelas/${k.id}/tugas`).catch(() => []),
+          apiFetch(`/kelas/${k.id}/kuis`).catch(() => []),
+        ]);
+        const el = document.createElement('div');
+        el.className = 'nb-card mb';
+        const barisT = tugas.map((t) => {
+          const n = t.saya?.status === 'dinilai' ? t.saya.nilai : null;
+          if (n !== null) semuaTugas.push(n);
+          const badge = n !== null ? `<span class="nb-badge ${n >= 80 ? 'green' : n >= 50 ? 'yellow' : 'red'}">${n}</span>` : `<span class="nb-badge yellow">● menunggu</span>`;
+          return `<div class="row mb"><b>${esc(t.judul)}</b><span style="flex:1"></span>${badge}</div>`;
+        }).join('') || '<div class="nb-hint">Tidak ada tugas.</div>';
+        const barisK = kuis.map((q) => {
+          if (q.saya) semuaKuis.push(q.saya.skor);
+          const badge = q.saya ? `<span class="nb-badge ${q.saya.skor >= 80 ? 'green' : q.saya.skor >= 50 ? 'yellow' : 'red'}">${q.saya.skor}</span>` : `<span class="nb-badge yellow">● belum</span>`;
+          return `<div class="row mb"><b>${esc(q.judul)}</b><span style="flex:1"></span>${badge}</div>`;
+        }).join('') || '<div class="nb-hint">Tidak ada kuis.</div>';
+        el.innerHTML = `<div class="nb-card-header dark"><span>${esc(k.nama_kelas)}</span></div>
+          <div class="nb-card-body"><b>📥 Tugas</b><div class="mt">${barisT}</div><b>📝 Kuis</b><div class="mt">${barisK}</div></div>`;
+        box.appendChild(el);
+      }
+      const avg = (a) => (a.length ? Math.round(a.reduce((x, y) => x + y, 0) / a.length) : '—');
+      document.getElementById('rata-tugas').textContent = avg(semuaTugas);
+      document.getElementById('rata-kuis').textContent = avg(semuaKuis);
+      const gab = [...semuaTugas, ...semuaKuis];
+      document.getElementById('rata-total').textContent = avg(gab);
+      window.__transkrip = { user, kelasList };
+    } catch (e) { toast(e.message, 'red'); }
+
+    document.getElementById('btn-unduh').addEventListener('click', () => {
+      const t = window.__transkrip;
+      if (!t) return;
+      let txt = `TRANSKRIP NILAI E-LEARNING\nNama: ${t.user.nama}\nEmail: ${t.user.email}\nTanggal: ${new Date().toLocaleString('id-ID')}\n\n`;
+      document.querySelectorAll('#isi-transkrip .nb-card').forEach((c) => {
+        txt += '== ' + c.querySelector('.nb-card-header').textContent.trim() + ' ==\n';
+        c.querySelectorAll('.row').forEach((r) => { txt += '- ' + r.textContent.trim().replace(/\s+/g, ' ') + '\n'; });
+        txt += '\n';
+      });
+      txt += `Rata-rata tugas: ${document.getElementById('rata-tugas').textContent}\nRata-rata kuis: ${document.getElementById('rata-kuis').textContent}\nRata-rata total: ${document.getElementById('rata-total').textContent}\n`;
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([txt], { type: 'text/plain' }));
+      a.download = 'transkrip.txt';
+      a.click();
+    });
+    dengarRefresh(() => location.reload());
+    try {
+      const p = await apiFetch('/pengaturan');
+      document.getElementById('kontak-box').innerHTML = `
+        <a class="nb-btn nb-btn-sm nb-btn-green" href="${esc(p.kontak_wa || '#')}" target="_blank">💬 WhatsApp</a>
+        <a class="nb-btn nb-btn-sm nb-btn-pink" href="${esc(p.kontak_ig || '#')}" target="_blank">📸 Instagram</a>
+        <a class="nb-btn nb-btn-sm nb-btn-blue" href="${esc(p.kontak_email || '#')}">✉ Email</a>`;
+    } catch {}
+  })();
+</script>
+</body>
+</html>

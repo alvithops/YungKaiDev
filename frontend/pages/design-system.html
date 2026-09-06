@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Design System — E-Learning PKL</title>
+  <link rel="stylesheet" href="../css/neo-brutal.css" />
+</head>
+<body>
+  <div class="content">
+    <div class="row mb">
+      <a class="nb-btn nb-btn-sm" href="../index.html">← Landing</a>
+      <h1>Design System</h1>
+      <span class="nb-badge yellow">Neo-Brutalist</span>
+    </div>
+
+    <div class="nb-card mb">
+      <div class="nb-card-header yellow">TOMBOL — hover & tekan untuk lihat indikator</div>
+      <div class="nb-card-body row">
+        <button class="nb-btn nb-btn-primary">Primary</button>
+        <button class="nb-btn nb-btn-blue">Blue</button>
+        <button class="nb-btn nb-btn-pink">Pink</button>
+        <button class="nb-btn nb-btn-green">Success</button>
+        <button class="nb-btn nb-btn-dark">Dark</button>
+        <button class="nb-btn nb-btn-danger">Danger</button>
+        <button class="nb-btn" disabled>Disabled</button>
+      </div>
+    </div>
+
+    <div class="grid-2 mb">
+      <div class="nb-card">
+        <div class="nb-card-header blue">INPUT + VALIDASI</div>
+        <div class="nb-card-body">
+          <label class="nb-label" for="kode">Kode Kelas</label>
+          <input id="kode" class="nb-input mono" value="WEB-7X2K9A" />
+          <div class="nb-hint">6–10 karakter, huruf besar + angka.</div>
+          <label class="nb-label mt" for="err">Contoh error</label>
+          <input id="err" class="nb-input is-error" value="salah123" aria-invalid="true" />
+          <div class="nb-error">⚠ Kode tidak ditemukan. Cek lagi dari mentor.</div>
+        </div>
+      </div>
+      <div class="nb-card">
+        <div class="nb-card-header pink">BADGE + ALERT</div>
+        <div class="nb-card-body">
+          <div class="row mb">
+            <span class="nb-badge yellow">● Belum dinilai</span>
+            <span class="nb-badge green">✓ Dinilai</span>
+            <span class="nb-badge red">⏰ Deadline</span>
+            <span class="nb-badge dark">MENTOR</span>
+          </div>
+          <div class="nb-alert nb-alert-green mb">✓ Tugas tersimpan di <span class="mono">uploads/tugas/</span> + database.</div>
+          <div class="nb-alert nb-alert-red">⚠ File max 10MB: pdf, zip, py, js, dll.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="nb-card mb">
+      <div class="nb-card-header dark">TABEL NILAI</div>
+      <div class="nb-card-body" style="padding:0">
+        <div class="nb-table-wrap" style="border:none; box-shadow:none; border-radius:0">
+          <table class="nb-table">
+            <thead><tr><th>Siswa</th><th>Tipe</th><th>Status</th><th>Nilai</th><th>Aksi</th></tr></thead>
+            <tbody>
+              <tr><td><b>Andi</b></td><td><span class="nb-badge blue">FILE</span></td><td><span class="nb-badge green">✓ Dinilai</span></td><td><b>90</b></td><td><button class="nb-btn nb-btn-sm">Lihat</button></td></tr>
+              <tr><td><b>Sari</b></td><td><span class="nb-badge yellow">CODE · py</span></td><td><span class="nb-badge yellow">● Menunggu</span></td><td>—</td><td><button class="nb-btn nb-btn-sm nb-btn-primary">Nilai</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="row"><a class="nb-btn nb-btn-primary" href="dashboard-mentor.html">Coba Layout Mentor →</a></div>
+  </div>
+</body>
+</html>

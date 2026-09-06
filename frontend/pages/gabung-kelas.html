@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gabung Kelas — E-Learning PKL</title>
+  <link rel="stylesheet" href="../css/neo-brutal.css" />
+</head>
+<body data-require="siswa">
+<div class="app" id="app">
+  <aside class="sidebar" aria-label="Navigasi utama">
+    <div class="brand"><span class="brand-mark">E</span> E-LEARNING</div>
+    <nav class="nb-nav">
+      <div class="nb-navlabel">Siswa</div>
+      <a class="nb-navlink" data-nav="dashboard" href="dashboard-siswa.html">🏠 Dashboard</a>
+      <a class="nb-navlink" data-nav="gabung" href="gabung-kelas.html">🔑 Gabung Kelas</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="profile-chip"><div class="avatar" data-profile-avatar style="background:var(--pink)">?</div><div><b data-profile-nama>...</b><br><span class="nb-badge blue" style="font-size:10px" data-profile-role>SISWA</span></div></div>
+      <button class="nb-btn nb-btn-sm nb-btn-block" data-logout>Keluar</button>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+  <div class="main-col">
+    <header class="topbar">
+      <button id="btnHamburger" class="nb-btn nb-btn-sm hamburger" aria-expanded="false" aria-label="Buka menu">☰</button>
+      <h1 class="page-title">Gabung Kelas</h1>
+    </header>
+    <main class="content" style="max-width:560px">
+      <div class="nb-card">
+        <div class="nb-card-header yellow">🔑 INPUT KODE KELAS</div>
+        <div class="nb-card-body">
+          <div id="err"></div>
+          <p class="nb-hint">Minta kode ke mentor (contoh: <span class="mono">WEB-7X2K9A</span>), lalu tempel di bawah.</p>
+          <form id="form-join" class="row">
+            <input id="kode" class="nb-input mono" style="flex:1; text-transform:uppercase" placeholder="WEB-XXXXXX" required aria-label="Kode kelas" />
+            <button class="nb-btn nb-btn-primary" type="submit" id="btn-join">Gabung →</button>
+          </form>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+<script src="../js/config.js"></script>
+<script src="../js/api.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/layout.js"></script>
+<script>
+  (async () => {
+    await requireAuth();
+    document.getElementById('form-join').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('btn-join');
+      btn.disabled = true;
+      try {
+        const kelas = await apiFetch('/kelas/join', { method: 'POST', body: { kode_kelas: kode.value } });
+        toast('Berhasil gabung: ' + kelas.nama_kelas, 'green');
+        setTimeout(() => location.href = 'kelas-detail.html?id=' + kelas.id, 800);
+      } catch (err) {
+        document.getElementById('err').innerHTML = `<div class="nb-alert nb-alert-red mb">⚠ ${esc(err.message)}</div>`;
+      } finally { btn.disabled = false; }
+    });
+  })();
+</script>
+</body>
+</html>

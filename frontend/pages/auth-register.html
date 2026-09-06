@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Register — E-Learning PKL</title>
+  <link rel="stylesheet" href="../css/neo-brutal.css" />
+</head>
+<body>
+  <div class="content" style="max-width:440px">
+    <div class="row mb"><a class="nb-btn nb-btn-sm" href="../index.html">← Beranda</a><span class="nb-badge blue">REGISTER</span></div>
+    <div class="nb-card">
+      <div class="nb-card-header blue">BUAT AKUN</div>
+      <div class="nb-card-body">
+        <div id="err"></div>
+        <form id="form-reg">
+          <label class="nb-label" for="nama">Nama lengkap</label>
+          <input id="nama" class="nb-input" required placeholder="Nama kamu" />
+          <label class="nb-label mt" for="email">Email</label>
+          <input id="email" class="nb-input" type="email" required placeholder="nama@sekolah.id" />
+          <label class="nb-label mt" for="password">Password (min 6)</label>
+          <input id="password" class="nb-input" type="password" required minlength="6" placeholder="••••••" />
+          <label class="nb-label mt" for="role">Daftar sebagai</label>
+          <select id="role" class="nb-select">
+            <option value="siswa">Siswa (gabung kelas via kode)</option>
+            <option value="mentor">Mentor (buat kelas + kode)</option>
+          </select>
+          <button class="nb-btn nb-btn-primary nb-btn-block mt" type="submit" id="btn-submit">Daftar →</button>
+        </form>
+        <p class="nb-hint" style="text-align:center">Sudah punya akun? <a href="auth-login.html"><b>Login</b></a></p>
+      </div>
+    </div>
+  </div>
+  <script src="../js/config.js"></script>
+  <script src="../js/api.js"></script>
+  <script>
+    document.getElementById('form-reg').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('btn-submit');
+      btn.disabled = true; btn.textContent = 'Mendaftarkan...';
+      try {
+        const data = await apiFetch('/auth/register', { method: 'POST', body: { nama: nama.value, email: email.value, password: password.value, role: role.value } });
+        localStorage.setItem('elearning_token', data.token);
+        localStorage.setItem('elearning_user', JSON.stringify(data.user));
+        location.href = data.user.role === 'mentor' ? 'dashboard-mentor.html' : 'gabung-kelas.html';
+      } catch (err) {
+        document.getElementById('err').innerHTML = `<div class="nb-alert nb-alert-red mb">⚠ ${esc(err.message)}</div>`;
+      } finally { btn.disabled = false; btn.textContent = 'Daftar →'; }
+    });
+  </script>
+</body>
+</html>

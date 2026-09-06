@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard Siswa — E-Learning PKL</title>
+  <link rel="stylesheet" href="../css/neo-brutal.css" />
+</head>
+<body data-page="dashboard" data-require="siswa">
+<div class="app" id="app">
+  <aside class="sidebar" aria-label="Navigasi utama">
+    <div class="brand"><span class="brand-mark">E</span> E-LEARNING</div>
+    <nav class="nb-nav">
+      <div class="nb-navlabel">Siswa</div>
+      <a class="nb-navlink" data-nav="dashboard" href="dashboard-siswa.html">🏠 Dashboard</a>
+      <a class="nb-navlink" data-nav="class" href="class-siswa.html">📚 Class</a>
+      <a class="nb-navlink" data-nav="tugas" href="tugas-saya.html">📝 Tugas Saya</a>
+      <a class="nb-navlink" data-nav="transkrip" href="transkrip.html">🎓 Transkrip</a>
+      <a class="nb-navlink" data-nav="gabung" href="gabung-kelas.html">🔑 Gabung Kelas</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="profile-chip"><div class="avatar" data-profile-avatar style="background:var(--pink)">?</div><div><b data-profile-nama>...</b><br><span class="nb-badge blue" style="font-size:10px" data-profile-role>SISWA</span></div></div>
+      <button class="nb-btn nb-btn-sm nb-btn-block" data-logout>Keluar</button>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <div class="main-col">
+    <header class="topbar">
+      <button id="btnHamburger" class="nb-btn nb-btn-sm hamburger" aria-expanded="false" aria-label="Buka menu">☰</button>
+      <h1 class="page-title">Dashboard Siswa</h1>
+      <span style="flex:1"></span>
+      <div style="position:relative">
+        <button id="btn-bell" class="nb-btn nb-btn-sm" aria-label="Notifikasi">🔔 <span id="bell-count" class="nb-badge red" style="font-size:10px">0</span></button>
+        <div id="bell-panel" style="display:none;position:absolute;right:0;top:52px;width:min(92vw,340px);z-index:60">
+          <div class="nb-card"><div class="nb-card-header yellow"><span>NOTIFIKASI</span><button class="nb-btn nb-btn-sm" id="btn-baca-semua">✓ Dibaca</button></div>
+          <div class="nb-card-body" id="bell-list" style="max-height:320px;overflow:auto"><div class="nb-hint">Memuat...</div></div></div>
+        </div>
+      </div>
+      <a class="nb-btn nb-btn-sm nb-btn-primary" href="gabung-kelas.html">+ Gabung via Kode</a>
+    </header>
+
+    <main class="content">
+      <div class="nb-alert nb-alert-yellow mb">👋 <b id="sambutan-tampil">Memuat sambutan...</b></div>
+      <div class="nb-alert nb-alert-red mb" id="ban-warning" style="display:none"></div>
+      <div class="grid-stats" style="grid-template-columns:repeat(3,1fr)">
+        <div class="nb-card"><div class="nb-card-header blue">KELAS</div><div class="nb-card-body"><div class="stat-num" id="stat-kelas">…</div><div>diikuti</div></div></div>
+        <div class="nb-card"><div class="nb-card-header yellow">TUGAS AKTIF</div><div class="nb-card-body"><div class="stat-num" id="stat-tugas">…</div><div>belum dikumpulkan</div></div></div>
+        <div class="nb-card"><div class="nb-card-header green">RATA-RATA</div><div class="nb-card-body"><div class="stat-num" id="stat-nilai">…</div><div>nilai</div></div></div>
+      </div>
+
+      <div class="grid-3 mb" id="list-kelas"><div class="nb-hint">Memuat...</div></div>
+
+      <div class="grid-2">
+        <div class="nb-card"><div class="nb-card-header pink">⏰ TUGAS MENDEKAT</div><div class="nb-card-body" id="tugas-dekat"><div class="nb-hint">Memuat...</div></div></div>
+        <div class="nb-card"><div class="nb-card-header green">✓ NILAI TERAKHIR</div><div class="nb-card-body" id="nilai-terakhir"><div class="nb-hint">Memuat...</div></div></div>
+      </div>
+
+      <div class="grid-2 mt">
+        <div class="nb-card"><div class="nb-card-header yellow">🟩 KONTRIBUSI AKTIF (10 MINGGU)</div><div class="nb-card-body"><div id="grid-kontribusi" style="display:grid;grid-template-columns:repeat(10,1fr);gap:4px"><div class="nb-hint">Memuat...</div></div><p class="nb-hint">Login, kumpul tugas, kuis, diskusi = 1 kotak.</p></div></div>
+        <div class="nb-card"><div class="nb-card-header pink">📢 PENGUMUMAN</div><div class="nb-card-body" id="list-pengumuman"><div class="nb-hint">Memuat...</div></div></div>
+      </div>
+    </main>
+  </div>
+</div>
+<script src="../js/config.js"></script>
+<script src="../js/realtime.js"></script>
+<script src="../js/api.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/notifikasi.js"></script>
+<script src="../js/layout.js"></script>
+<script src="../js/dashboard-siswa.js"></script>
+</body>
+</html>

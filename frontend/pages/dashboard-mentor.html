@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard Mentor — E-Learning PKL</title>
+  <link rel="stylesheet" href="../css/neo-brutal.css" />
+</head>
+<body data-page="dashboard" data-require="mentor">
+<div class="app" id="app">
+  <aside class="sidebar" aria-label="Navigasi utama">
+    <div class="brand"><span class="brand-mark">E</span> E-LEARNING</div>
+    <nav class="nb-nav">
+      <div class="nb-navlabel">Mentor</div>
+      <a class="nb-navlink" data-nav="dashboard" href="dashboard-mentor.html">📊 Dashboard</a>
+      <a class="nb-navlink" data-nav="class" href="class-mentor.html">📚 Class</a>
+      <a class="nb-navlink" data-nav="transkrip" href="transkrip-mentor.html">🎓 Transkrip</a>
+      <a class="nb-navlink" data-nav="announcement" href="announcement.html">📢 Announcement</a>
+      <a class="nb-navlink" data-nav="pantau" href="pantau.html">👁 Pantau Siswa</a>
+      <div class="nb-navlabel">Lainnya</div>
+      <a class="nb-navlink" data-nav="design" href="design-system.html">🎨 Design System</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="profile-chip"><div class="avatar" data-profile-avatar>?</div><div><b data-profile-nama>...</b><br><span class="nb-badge dark" style="font-size:10px" data-profile-role>MENTOR</span></div></div>
+      <button class="nb-btn nb-btn-sm nb-btn-block" data-logout>Keluar</button>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <div class="main-col">
+    <header class="topbar">
+      <button id="btnHamburger" class="nb-btn nb-btn-sm hamburger" aria-expanded="false" aria-label="Buka menu">☰</button>
+      <h1 class="page-title">Dashboard Mentor</h1>
+      <span style="flex:1"></span>
+      <span class="nb-badge yellow hide-mobile" id="badge-tugas">● …</span>
+      <div style="position:relative">
+        <button id="btn-bell" class="nb-btn nb-btn-sm" aria-label="Notifikasi">🔔 <span id="bell-count" class="nb-badge red" style="font-size:10px">0</span></button>
+        <div id="bell-panel" style="display:none;position:absolute;right:0;top:52px;width:min(92vw,340px);z-index:60">
+          <div class="nb-card"><div class="nb-card-header yellow"><span>NOTIFIKASI</span><button class="nb-btn nb-btn-sm" id="btn-baca-semua">✓ Dibaca</button></div>
+          <div class="nb-card-body" id="bell-list" style="max-height:320px;overflow:auto"><div class="nb-hint">Memuat...</div></div></div>
+        </div>
+      </div>
+    </header>
+
+    <main class="content">
+      <div class="nb-alert nb-alert-yellow mb">👋 <b id="sambutan-tampil">Memuat sambutan...</b></div>
+      <div class="grid-stats">
+        <div class="nb-card"><div class="nb-card-header yellow">KELAS</div><div class="nb-card-body"><div class="stat-num" id="stat-kelas">…</div><div>kelas aktif</div></div></div>
+        <div class="nb-card"><div class="nb-card-header blue">SISWA</div><div class="nb-card-body"><div class="stat-num" id="stat-siswa">…</div><div>total siswa</div></div></div>
+        <div class="nb-card"><div class="nb-card-header pink">BELUM DINILAI</div><div class="nb-card-body"><div class="stat-num" id="stat-tugas">…</div><div>tugas menunggu</div></div></div>
+        <div class="nb-card"><div class="nb-card-header green">KUIS AKTIF</div><div class="nb-card-body"><div class="stat-num" id="stat-kuis">…</div><div>berjalan</div></div></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="nb-card">
+          <div class="nb-card-header blue">📈 GRAFIK PENDAFTARAN (14 HARI)</div>
+          <div class="nb-card-body"><div id="grafik" class="row" style="align-items:flex-end;min-height:120px"><div class="nb-hint">Memuat...</div></div></div>
+        </div>
+        <div class="nb-card">
+          <div class="nb-card-header yellow">✏️ SAMBUTAN & KONTAK</div>
+          <div class="nb-card-body">
+            <form id="form-sambutan">
+              <label class="nb-label" for="in-sambutan">Teks sambutan</label>
+              <input id="in-sambutan" class="nb-input" maxlength="200" aria-label="Teks sambutan" />
+              <div class="row mt">
+                <input id="in-wa" class="nb-input" placeholder="Link WhatsApp" aria-label="WhatsApp" />
+                <input id="in-ig" class="nb-input" placeholder="Link Instagram" aria-label="Instagram" />
+              </div>
+              <input id="in-email" class="nb-input mt" placeholder="Link Email (mailto:...)" aria-label="Email" />
+              <button class="nb-btn nb-btn-sm nb-btn-primary mt" type="submit">Simpan Semua</button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-2 mt">
+        <div class="nb-card">
+          <div class="nb-card-header dark"><span>KELAS SAYA</span></div>
+          <div class="nb-card-body"><div class="row" id="list-kelas" style="align-items:stretch"><div class="nb-hint">Memuat...</div></div></div>
+        </div>
+        <div class="nb-card">
+          <div class="nb-card-header yellow">+ BUAT KELAS</div>
+          <div class="nb-card-body">
+            <form id="form-kelas">
+              <label class="nb-label" for="bk_nama">Nama kelas</label>
+              <input id="bk_nama" class="nb-input" required placeholder="cth: Pemrograman Web" />
+              <label class="nb-label mt" for="bk_deskripsi">Deskripsi</label>
+              <textarea id="bk_deskripsi" class="nb-textarea" rows="3" placeholder="Deskripsi singkat kelas"></textarea>
+              <button class="nb-btn nb-btn-primary nb-btn-block mt" type="submit">Buat + Generate Kode →</button>
+            </form>
+            <div class="nb-alert nb-alert-green mt">Kode dibuat otomatis → bagikan ke siswa untuk gabung.</div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+<script src="../js/config.js"></script>
+<script src="../js/realtime.js"></script>
+<script src="../js/api.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/notifikasi.js"></script>
+<script src="../js/layout.js"></script>
+<script src="../js/dashboard-mentor.js"></script>
+</body>
+</html>

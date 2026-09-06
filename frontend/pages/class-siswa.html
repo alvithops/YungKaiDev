@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Menu Class — Siswa</title>
+  <link rel="stylesheet" href="../css/neo-brutal.css" />
+</head>
+<body data-page="class" data-require="siswa">
+<div class="app" id="app">
+  <aside class="sidebar" aria-label="Navigasi utama">
+    <div class="brand"><span class="brand-mark">E</span> E-LEARNING</div>
+    <nav class="nb-nav">
+      <div class="nb-navlabel">Siswa</div>
+      <a class="nb-navlink" data-nav="dashboard" href="dashboard-siswa.html">🏠 Dashboard</a>
+      <a class="nb-navlink" data-nav="class" href="class-siswa.html">📚 Class</a>
+      <a class="nb-navlink" data-nav="tugas" href="tugas-saya.html">📝 Tugas Saya</a>
+      <a class="nb-navlink" data-nav="transkrip" href="transkrip.html">🎓 Transkrip</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="profile-chip"><div class="avatar" data-profile-avatar style="background:var(--pink)">?</div><div><b data-profile-nama>...</b><br><span class="nb-badge blue" style="font-size:10px" data-profile-role>SISWA</span></div></div>
+      <button class="nb-btn nb-btn-sm nb-btn-block" data-logout>Keluar</button>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+  <div class="main-col">
+    <header class="topbar">
+      <button id="btnHamburger" class="nb-btn nb-btn-sm hamburger" aria-expanded="false" aria-label="Buka menu">☰</button>
+      <h1 class="page-title">Menu Class</h1>
+    </header>
+    <main class="content">
+      <div class="nb-card mb">
+        <div class="nb-card-header yellow">🔑 GABUNG DENGAN KODE</div>
+        <div class="nb-card-body">
+          <div id="err"></div>
+          <form id="form-join" class="row">
+            <input id="kode" class="nb-input mono" style="flex:1;text-transform:uppercase" placeholder="WEB-XXXXXX" required aria-label="Kode kelas" />
+            <button class="nb-btn nb-btn-primary" type="submit">Gabung →</button>
+          </form>
+        </div>
+      </div>
+      <div class="grid-3" id="list-kelas"><div class="nb-hint">Memuat...</div></div>
+    </main>
+  </div>
+</div>
+<script src="../js/config.js"></script>
+<script src="../js/realtime.js"></script>
+<script src="../js/api.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/layout.js"></script>
+<script>
+  (async () => {
+    await requireAuth();
+    async function muat() {
+      try {
+        const list = await apiFetch('/kelas');
+        const box = document.getElementById('list-kelas');
+        box.innerHTML = list.length ? '' : `<div class="nb-alert nb-alert-yellow">Belum ikut kelas. Masukkan kode di atas!</div>`;
+        list.forEach((k, i) => {
+          const el = document.createElement('div');
+          el.className = 'nb-card nb-card-hover';
+          el.innerHTML = `<div class="nb-card-header ${['yellow', 'blue', 'pink', 'green'][i % 4]}">${esc(k.nama_kelas)}</div>
+            <div class="nb-card-body"><div class="mono nb-hint">${esc(k.kode_kelas)} · ${esc(k.mentor_nama || '')}</div>
+            <p class="nb-hint">${esc(k.deskripsi || '')}</p>
+            <div class="row"><a class="nb-btn nb-btn-sm nb-btn-dark" href="kelas-detail.html?id=${k.id}#materi">📖 Modul</a>
+            <a class="nb-btn nb-btn-sm nb-btn-blue" href="kelas-detail.html?id=${k.id}#tugas">📥 Tugas</a>
+            <a class="nb-btn nb-btn-sm nb-btn-pink" href="kelas-detail.html?id=${k.id}#kuis">📝 Kuis</a></div></div>`;
+          box.appendChild(el);
+        });
+      } catch (e) { toast(e.message, 'red'); }
+    }
+    document.getElementById('form-join').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        const k = await apiFetch('/kelas/join', { method: 'POST', body: { kode_kelas: kode.value } });
+        toast('Gabung: ' + k.nama_kelas, 'green');
+        kode.value = ''; muat();
+      } catch (err) {
+        document.getElementById('err').innerHTML = `<div class="nb-alert nb-alert-red mb">⚠ ${esc(err.message)}</div>`;
+      }
+    });
+    dengarRefresh(muat);
+    muat();
+  })();
+</script>
+</body>
+</html>
