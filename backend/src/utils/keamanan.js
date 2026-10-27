@@ -56,8 +56,22 @@ function catatGagal(key) {
 }
 function catatSukses(key) { upaya.delete(key); }
 
+// --- Rate-limit generik per-key (sliding window) untuk register/upload/aksi lain --
+const antrian = new Map(); // key -> [timestamp]
+function bukaLimit(key, maks, rentangMs) {
+  const now = Date.now();
+  const arr = (antrian.get(key) || []).filter((t) => now - t < rentangMs);
+  if (arr.length >= maks) {
+    antrian.set(key, arr);
+    return { boleh: false, tunggu: Math.max(1, Math.ceil((rentangMs - (now - arr[0])) / 1000)) };
+  }
+  arr.push(now);
+  antrian.set(key, arr);
+  return { boleh: true };
+}
+
 module.exports = {
   hashPassword, cocokPassword, kuatPassword,
   buatToken, cekToken, bersih, emailValid,
-  kunciUpaya, bolehLogin, catatGagal, catatSukses,
+  kunciUpaya, bolehLogin, catatGagal, catatSukses, bukaLimit,
 };

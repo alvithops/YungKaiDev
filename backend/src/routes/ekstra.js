@@ -4,6 +4,8 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const db = require('../config/db');
+const keamanan = require('../utils/keamanan');
+const { pagine } = require('../utils/paginasi');
 const { verifyToken, requireRole } = require('../middleware/auth');
 const { notifyUser, notifyKelas } = require('../utils/notifikasi');
 
@@ -20,7 +22,10 @@ function milikMentor(kelasId, mentorId) {
 
 // ---------- Notifikasi milikku ----------
 router.get('/notifikasi', verifyToken, (req, res) => {
-  const rows = db.prepare(`SELECT n.*, k.nama_kelas FROM notifikasi n LEFT JOIN kelas k ON k.id = n.kelas_id WHERE n.user_id = ? ORDER BY n.dibaca, n.id DESC LIMIT 30`).all(req.user.id);
+  const { limit, offset, q } = pagine(req);
+  const cari = q ? ' AND (n.judul LIKE ? OR n.isi LIKE ?)' : '';
+  const args = q ? [req.user.id, `%${q}%`, `%${q}%`] : [req.user.id];
+  const rows = db.prepare(`SELECT n.*, k.nama_kelas FROM notifikasi n LEFT JOIN kelas k ON k.id = n.kelas_id WHERE n.user_id = ?${cari} ORDER BY n.dibaca, n.id DESC LIMIT ? OFFSET ?`).all(...args, limit, offset);
   return ok(res, rows);
 });
 router.get('/notifikasi/belum-baca', verifyToken, (req, res) => {
@@ -111,7 +116,10 @@ router.put('/pengaturan', verifyToken, requireRole('mentor'), (req, res) => {
 
 // ---------- Pengumuman sistem (global, buat/hapus mentor) ----------
 router.get('/pengumuman', verifyToken, (req, res) => {
-  const rows = db.prepare(`SELECT p.*, u.nama AS mentor_nama FROM pengumuman p JOIN users u ON u.id = p.mentor_id ORDER BY p.id DESC LIMIT 20`).all();
+  const { limit, offset, q } = pagine(req);
+  const cari = q ? ' WHERE (p.judul LIKE ? OR p.isi LIKE ?)' : '';
+  const args = q ? [`%${q}%`, `%${q}%`] : [];
+  const rows = db.prepare(`SELECT p.*, u.nama AS mentor_nama FROM pengumuman p JOIN users u ON u.id = p.mentor_id${cari} ORDER BY p.id DESC LIMIT ? OFFSET ?`).all(...args, limit, offset);
   return ok(res, rows);
 });
 router.post('/pengumuman', verifyToken, requireRole('mentor'), (req, res) => {
@@ -130,20 +138,24 @@ router.delete('/pengumuman/:id', verifyToken, requireRole('mentor'), (req, res) 
   return ok(res, null, 'Pengumuman dihapus');
 });
 
-// ---------- Pantau siswa (semua kelas milik mentor) ----------
+// ---------- Pantau siswa (SEMUA akun siswa terdaftar + online) ----------
 router.get('/pantau', verifyToken, requireRole('mentor'), (req, res) => {
   const kelasSaya = db.prepare('SELECT id, nama_kelas FROM kelas WHERE mentor_id = ? ORDER BY id').all(req.user.id);
   const ids = kelasSaya.map((k) => k.id);
-  let siswa = [], banned = [], pending = [];
+  const stmtKelasSiswa = db.prepare(`SELECT k.nama_kelas FROM kelas_member km JOIN kelas k ON k.id = km.kelas_id WHERE km.siswa_id = ? AND k.mentor_id = ?`);
+  // SEMUA siswa yang terdaftar di platform (bukan hanya anggota kelas mentor ini),
+  // lengkap dengan status online (< 5 mnt) dan status blokir akun global.
+  const siswa = db.prepare(`SELECT id, nama, email, username, created_at, diblokir, blokir_alasan, diblokir_pada, last_seen,
+      CASE WHEN last_seen >= datetime('now', '-5 minutes') THEN 1 ELSE 0 END AS online
+      FROM users WHERE role = 'siswa' ORDER BY diblokir DESC, online DESC, nama`).all()
+    .map((s) => ({ ...s, kelas: stmtKelasSiswa.all(s.id, req.user.id).map((r) => r.nama_kelas) }));
+  let banned = [], pending = [];
   if (ids.length) {
-    const q = `(${ids.map(() => '?').join(',')})`;
-    siswa = db.prepare(`SELECT DISTINCT u.id, u.nama, u.email FROM kelas_member km JOIN users u ON u.id = km.siswa_id WHERE km.kelas_id IN ${q} ORDER BY u.nama`).all(...ids);
-    const stmtKelasSiswa = db.prepare(`SELECT k.nama_kelas FROM kelas_member km JOIN kelas k ON k.id = km.kelas_id WHERE km.siswa_id = ? AND k.mentor_id = ?`);
-    siswa = siswa.map((s) => ({ ...s, kelas: stmtKelasSiswa.all(s.id, req.user.id).map((r) => r.nama_kelas) }));
     banned = db.prepare(`SELECT b.*, u.nama, u.email, k.nama_kelas FROM banned b JOIN users u ON u.id = b.siswa_id JOIN kelas k ON k.id = b.kelas_id WHERE k.mentor_id = ? ORDER BY b.id DESC`).all(req.user.id);
     pending = db.prepare(`SELECT r.*, u.nama, u.email, k.nama_kelas FROM access_requests r JOIN users u ON u.id = r.siswa_id JOIN kelas k ON k.id = r.kelas_id WHERE k.mentor_id = ? AND r.status = 'pending' ORDER BY r.id DESC`).all(req.user.id);
   }
-  return ok(res, { kelas: kelasSaya, siswa, banned, pending });
+  const online = siswa.filter((s) => s.online).length;
+  return ok(res, { kelas: kelasSaya, siswa, banned, pending, total_siswa: siswa.length, online });
 });
 
 // ---------- Rekap transkrip per kelas (matriks siswa × tugas + rata-rata bulanan) ----------
@@ -152,6 +164,7 @@ router.get('/kelas/:id/rekap', verifyToken, requireRole('mentor'), (req, res) =>
   if (!kelas) return fail(res, 'Kelas tidak ditemukan', 404);
   if (kelas.mentor_id !== req.user.id) return fail(res, 'Bukan kelas milikmu', 403);
   const daftarTugas = db.prepare('SELECT id, judul FROM tugas WHERE kelas_id = ? ORDER BY id').all(kelas.id);
+  const daftarKuis = db.prepare('SELECT id, judul FROM kuis WHERE kelas_id = ? ORDER BY id').all(kelas.id);
   const daftarSiswa = db.prepare(`SELECT u.id, u.nama, u.username, u.email FROM kelas_member km JOIN users u ON u.id = km.siswa_id WHERE km.kelas_id = ? ORDER BY u.nama`).all(kelas.id);
   const kumpul = db.prepare(`SELECT p.* FROM pengumpulan_tugas p JOIN tugas t ON t.id = p.tugas_id WHERE t.kelas_id = ?`).all(kelas.id);
   const perSel = {};
@@ -172,13 +185,22 @@ router.get('/kelas/:id/rekap', verifyToken, requireRole('mentor'), (req, res) =>
       nilai[t.id] = sel;
       if (sel && sel.nilai !== null) angka.push(sel.nilai);
     }
+    const nilai_kuis = {};
+    const angkaKuis = [];
+    for (const k of daftarKuis) {
+      const h = db.prepare('SELECT skor FROM hasil_kuis WHERE kuis_id = ? AND siswa_id = ?').get(k.id, s.id);
+      nilai_kuis[k.id] = h ? h.skor : null;
+      if (h) angkaKuis.push(h.skor);
+    }
+    const avg = (a) => (a.length ? Math.round(a.reduce((x, y) => x + y, 0) / a.length) : null);
     const bulanan = {};
     for (const [bl, arr] of Object.entries(perBulan[s.id] || {})) {
       bulanan[bl] = Math.round(arr.reduce((a, b) => a + b, 0) / arr.length);
     }
-    return { ...s, nilai, rata2: angka.length ? Math.round(angka.reduce((a, b) => a + b, 0) / angka.length) : null, bulanan };
+    const semua = [...angka, ...angkaKuis];
+    return { ...s, nilai, rata2: avg(angka), nilai_kuis, rata_kuis: avg(angkaKuis), rata_total: avg(semua), bulanan };
   });
-  return ok(res, { kelas, tugas: daftarTugas, siswa });
+  return ok(res, { kelas, tugas: daftarTugas, kuis: daftarKuis, siswa });
 });
 
 // ---------- Ringkas aktivitas harian (grid kontribusi, 70 hari) ----------
@@ -196,6 +218,21 @@ router.get('/pantau/siswa/:siswaId', verifyToken, requireRole('mentor'), (req, r
   const ringkas = Object.fromEntries(db.prepare(`SELECT substr(created_at,1,10) tgl, COUNT(*) jml FROM aktivitas WHERE user_id = ? AND created_at >= date('now','-69 days') GROUP BY tgl`).all(s.id).map((r) => [r.tgl, r.jml]));
   const tugasDinilai = db.prepare(`SELECT t.judul AS apa, p.nilai, k.nama_kelas, 'tugas' AS jenis FROM pengumpulan_tugas p JOIN tugas t ON t.id = p.tugas_id JOIN kelas k ON k.id = t.kelas_id WHERE p.siswa_id = ? AND p.status = 'dinilai' AND k.mentor_id = ? ORDER BY p.graded_at DESC LIMIT 20`).all(s.id, req.user.id);
   const kuisSkor = db.prepare(`SELECT q.judul AS apa, h.skor AS nilai, k.nama_kelas, 'kuis' AS jenis FROM hasil_kuis h JOIN kuis q ON q.id = h.kuis_id JOIN kelas k ON k.id = q.kelas_id WHERE h.siswa_id = ? AND k.mentor_id = ? ORDER BY h.submitted_at DESC LIMIT 20`).all(s.id, req.user.id);
+  // ?kelas=ID → progres per pertemuan 1–14 (modul dibaca, tugas, kuis)
+  if (req.query.kelas) {
+    const k = db.prepare('SELECT * FROM kelas WHERE id = ?').get(req.query.kelas);
+    if (!k || k.mentor_id !== req.user.id) return fail(res, 'Bukan kelas milikmu', 403);
+    const dibaca = new Set(db.prepare(`SELECT DISTINCT substr(jenis, 6) AS mid FROM aktivitas WHERE user_id = ? AND jenis LIKE 'baca:%'`).all(s.id).map((r) => String(r.mid)));
+    const progres = [];
+    for (let p = 1; p <= 14; p++) {
+      const materi = db.prepare('SELECT id, judul FROM materi WHERE kelas_id = ? AND pertemuan = ? ORDER BY urutan, id').all(k.id, p)
+        .map((m) => ({ ...m, dibaca: dibaca.has(String(m.id)) }));
+      const tugas = db.prepare(`SELECT t.id, t.judul, t.deadline, p.status, p.nilai, p.feedback, p.file_path, p.bahasa, p.submitted_at FROM tugas t LEFT JOIN pengumpulan_tugas p ON p.tugas_id = t.id AND p.siswa_id = ? WHERE t.kelas_id = ? AND t.pertemuan = ? ORDER BY t.id`).all(s.id, k.id, p);
+      const kuis = db.prepare(`SELECT q.id, q.judul, h.skor, h.submitted_at FROM kuis q LEFT JOIN hasil_kuis h ON h.kuis_id = q.id AND h.siswa_id = ? WHERE q.kelas_id = ? AND q.pertemuan = ? ORDER BY q.id`).all(s.id, k.id, p);
+      progres.push({ p, materi, tugas, kuis });
+    }
+    return ok(res, { siswa: s, kelas: k, progres });
+  }
   return ok(res, { siswa: s, kelas, ringkas, nilai: [...tugasDinilai, ...kuisSkor] });
 });
 
@@ -206,18 +243,12 @@ router.get('/blokir-permanen', verifyToken, requireRole('mentor'), (req, res) =>
   return ok(res, rows);
 });
 
-// Eksekusi blokir permanent (dari pantau: permintaan akses / daftar banned)
+// Eksekusi blokir permanent — mentor boleh menghapus SEMBARANG akun siswa terdaftar
+// (bukan hanya yang ada di kelasnya), sejalan dengan fitur pantau "semua siswa".
 router.post('/blokir-permanen', verifyToken, requireRole('mentor'), (req, res) => {
   const { siswa_id } = req.body || {};
   const s = db.prepare('SELECT * FROM users WHERE id = ?').get(siswa_id);
   if (!s || s.role !== 'siswa') return fail(res, 'Siswa tidak ditemukan', 404);
-  // hanya siswa yang berkaitan dengan kelasku
-  const relasi = db.prepare(`SELECT 1 WHERE
-    EXISTS (SELECT 1 FROM kelas_member km JOIN kelas k ON k.id = km.kelas_id WHERE km.siswa_id = ? AND k.mentor_id = ?) OR
-    EXISTS (SELECT 1 FROM banned b JOIN kelas k ON k.id = b.kelas_id WHERE b.siswa_id = ? AND k.mentor_id = ?) OR
-    EXISTS (SELECT 1 FROM access_requests r JOIN kelas k ON k.id = r.kelas_id WHERE r.siswa_id = ? AND k.mentor_id = ?)`)
-    .get(s.id, req.user.id, s.id, req.user.id, s.id, req.user.id);
-  if (!relasi) return fail(res, 'Bukan siswa di kelasmu', 403);
   // 1. kumpulkan file fisik miliknya (tugas yang dikumpulkan)
   const files = db.prepare('SELECT file_path FROM pengumpulan_tugas WHERE siswa_id = ? AND file_path IS NOT NULL').all(s.id);
   // 2. hapus akun → CASCADE membersihkan member, pengumpulan, hasil kuis, diskusi, banned, request, notifikasi, aktivitas
@@ -235,6 +266,48 @@ router.post('/blokir-permanen', verifyToken, requireRole('mentor'), (req, res) =
 router.delete('/blokir-permanen/:id', verifyToken, requireRole('mentor'), (req, res) => {
   db.prepare('DELETE FROM blokir_permanen WHERE id = ?').run(req.params.id);
   return ok(res, null, 'Blokir permanent dibuka');
+});
+
+// Bersihkan SELURUH riwayat blokir permanent (daftar jadi kosong;
+// konsekuensi: email-email itu bisa dipakai daftar lagi).
+router.delete('/blokir-permanen', verifyToken, requireRole('mentor'), (req, res) => {
+  const info = db.prepare('DELETE FROM blokir_permanen').run();
+  return ok(res, { dibersihkan: info.changes }, `Riwayat dibersihkan (${info.changes} nama)`);
+});
+
+// PUT /api/users/:id/reset-password (mentor) — solusi lupa password tanpa SMTP.
+// Hanya untuk siswa di kelas mentor tersebut.
+router.put('/users/:id/reset-password', verifyToken, requireRole('mentor'), (req, res) => {
+  const u = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
+  if (!u || u.role !== 'siswa') return fail(res, 'Siswa tidak ditemukan', 404);
+  const relasi = db.prepare(`SELECT 1 WHERE
+    EXISTS (SELECT 1 FROM kelas_member km JOIN kelas k ON k.id = km.kelas_id WHERE km.siswa_id = ? AND k.mentor_id = ?) OR
+    EXISTS (SELECT 1 FROM banned b JOIN kelas k ON k.id = b.kelas_id WHERE b.siswa_id = ? AND k.mentor_id = ?)`)
+    .get(u.id, req.user.id, u.id, req.user.id);
+  if (!relasi) return fail(res, 'Bukan siswa di kelasmu', 403);
+  const { password_baru } = req.body || {};
+  if (!keamanan.kuatPassword(password_baru)) return fail(res, 'Password baru minimal 6 karakter');
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(keamanan.hashPassword(password_baru), u.id);
+  return ok(res, null, `Password ${u.nama} direset menjadi: ${password_baru}`);
+});
+
+// ---------- Blokir akun siswa GLOBAL (sementara, bisa dibuka) ----------
+// Beda dengan "ban per-kelas" (siswa masih bisa login & buka kelas lain) dan
+// "blokir permanent" (akun dihapus total). Blokir akun = suspend seluruh akses,
+// sampai mentor membukanya kembali.
+router.put('/users/:siswaId/blokir', verifyToken, requireRole('mentor'), (req, res) => {
+  const s = db.prepare('SELECT id, nama, role FROM users WHERE id = ?').get(req.params.siswaId);
+  if (!s || s.role !== 'siswa') return fail(res, 'Siswa tidak ditemukan', 404);
+  const alasan = String((req.body || {}).alasan || '').trim().slice(0, 200) || 'Diblokir oleh mentor';
+  db.prepare(`UPDATE users SET diblokir = 1, blokir_alasan = ?, diblokir_pada = CURRENT_TIMESTAMP WHERE id = ?`).run(alasan, s.id);
+  return ok(res, { id: s.id, nama: s.nama, alasan }, `Akun ${s.nama} diblokir (seluruh akses ditolak)`);
+});
+
+router.delete('/users/:siswaId/blokir', verifyToken, requireRole('mentor'), (req, res) => {
+  const s = db.prepare('SELECT id, nama, role FROM users WHERE id = ?').get(req.params.siswaId);
+  if (!s || s.role !== 'siswa') return fail(res, 'Siswa tidak ditemukan', 404);
+  db.prepare(`UPDATE users SET diblokir = 0, blokir_alasan = NULL, diblokir_pada = NULL WHERE id = ?`).run(s.id);
+  return ok(res, { id: s.id, nama: s.nama }, `Blokir akun ${s.nama} dibuka`);
 });
 
 module.exports = router;

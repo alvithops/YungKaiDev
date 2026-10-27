@@ -38,7 +38,8 @@ async function api(method, path, token, body) {
 async function pastikanAkun(nama, email, password, role) {
   let j = await api('POST', '/api/auth/login', null, { email, password });
   if (j.success) return j.data.token;
-  j = await api('POST', '/api/auth/register', null, { nama, email, password, role });
+  const username = email.split('@')[0].replace(/[^a-z0-9]/g, '') + '1';
+  j = await api('POST', '/api/auth/register', null, { nama, username, email, password, role });
   if (!j.success) throw new Error('Gagal siapkan akun uji ' + email + ': ' + j.message);
   return j.data.token;
 }

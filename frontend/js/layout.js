@@ -44,3 +44,35 @@
     });
   });
 })();
+
+// Kehadiran live lintas-tab (pelengkap last_seen server untuk lintas perangkat).
+// Tiap halaman app menyiarkan "saya online" tiap 15 dtk; peta window.__hadirMap
+// dipakai mentor untuk dot hijau real-time. Tanpa login = tidak disiarkan.
+(function () {
+  let ch = null;
+  try { if ('BroadcastChannel' in window) ch = new BroadcastChannel('pkl-hadir-v1'); } catch {}
+  window.__hadirMap = window.__hadirMap || {};
+  function kirimHadir() {
+    try {
+      const u = JSON.parse(localStorage.getItem('elearning_user') || 'null');
+      if (!u || !localStorage.getItem('elearning_token') || !ch) return;
+      ch.postMessage({ id: u.id, nama: u.nama, role: u.role, at: Date.now() });
+    } catch {}
+  }
+  kirimHadir();
+  setInterval(kirimHadir, 15000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) kirimHadir(); });
+  if (ch) ch.onmessage = (e) => {
+    const d = e.data || {};
+    if (!d.id) return;
+    window.__hadirMap[d.id] = { nama: d.nama, role: d.role, at: d.at };
+    window.dispatchEvent(new CustomEvent('pkl:hadir', { detail: d }));
+  };
+  setInterval(() => {
+    const now = Date.now();
+    for (const k of Object.keys(window.__hadirMap)) {
+      if (now - window.__hadirMap[k].at > 45000) delete window.__hadirMap[k];
+    }
+    window.dispatchEvent(new CustomEvent('pkl:hadir'));
+  }, 15000);
+})();

@@ -15,7 +15,19 @@
     return Object.keys(g).sort((a, b) => a - b).map((p) => ({ p: Number(p), items: g[p] }));
   }
   let cacheMateri = [], cacheTugas = [], cacheKuis = [];
-  ['fm_pert', 'ft_pert', 'fk_pert'].forEach((id) => { const el = document.getElementById(id); if (el) el.innerHTML = opsiPert(1); });
+  const cacheKuisDetail = {}; // kuisId -> {soal, hasil} untuk periksa esai
+  let qMateri = '', qTugas = '', qKuis = '';
+  function cariDebounce(id, fn) {
+    let t = null;
+    document.getElementById(id)?.addEventListener('input', (e) => {
+      clearTimeout(t);
+      t = setTimeout(() => fn(e.target.value.trim()), 400);
+    });
+  }
+  cariDebounce('cari-materi', (v) => { qMateri = v; muatMateri(); });
+  cariDebounce('cari-tugas', (v) => { qTugas = v; muatTugas(); });
+  cariDebounce('cari-kuis', (v) => { qKuis = v; muatKuis(); });
+  ['fm_pert', 'ft_pert'].forEach((id) => { const el = document.getElementById(id); if (el) el.innerHTML = opsiPert(1); });
 
   try {
     const k = await apiFetch(`/kelas/${kelasId}`);
@@ -23,6 +35,8 @@
     document.getElementById('deskripsi-kelas').textContent = k.deskripsi || '';
     document.getElementById('badge-siswa').textContent = k.jml_siswa + ' siswa';
     document.getElementById('kode-kelas').textContent = k.kode_kelas;
+    const bb = document.getElementById('btn-buat-kuis');
+    if (bb) bb.href = `buat-kuis.html?id=${kelasId}`;
   } catch (e) { toast(e.message, 'red'); return; }
 
   document.addEventListener('click', async (e) => {
@@ -35,7 +49,7 @@
   // ---------- Modul / Materi ----------
   async function muatMateri() {
     try {
-      const list = await apiFetch(`/kelas/${kelasId}/materi`);
+      const list = await apiFetch(`/kelas/${kelasId}/materi?q=${encodeURIComponent(qMateri)}`);
       cacheMateri = list;
       document.getElementById('count-materi').textContent = list.length + ' modul';
       const box = document.getElementById('list-materi');
@@ -50,7 +64,7 @@
           el.className = 'row mb';
           el.innerHTML = `<b>${esc(m.judul)}</b><span style="flex:1"></span>
             ${m.link_video ? `<a class="nb-btn nb-btn-sm nb-btn-pink" href="${esc(m.link_video)}" target="_blank">▶ Video</a>` : ''}
-            ${m.file_path ? `<a class="nb-btn nb-btn-sm nb-btn-blue" href="${FILE_BASE_URL + m.file_path}" target="_blank">📎 File</a>` : ''}
+            ${m.file_path ? `<a class="nb-btn nb-btn-sm nb-btn-blue" href="${apiFile(m.file_path)}" target="_blank">📎 File</a>` : ''}
             <button class="nb-btn nb-btn-sm" data-edit-materi="${m.id}">Ubah</button>
             <button class="nb-btn nb-btn-sm nb-btn-danger" data-hapus-materi="${m.id}">Hapus</button>`;
           if (m.deskripsi) { const d = document.createElement('div'); d.className = 'nb-hint'; d.style.width = '100%'; d.textContent = m.deskripsi; el.appendChild(d); }
@@ -92,7 +106,7 @@
   // ---------- Tugas + penilaian ----------
   async function muatTugas() {
     try {
-      const list = await apiFetch(`/kelas/${kelasId}/tugas`);
+      const list = await apiFetch(`/kelas/${kelasId}/tugas?q=${encodeURIComponent(qTugas)}`);
       cacheTugas = list;
       const box = document.getElementById('list-tugas');
       const grup = grupPertemuan(list);
@@ -142,7 +156,7 @@
         const tr = document.createElement('tr');
         tr.innerHTML = `<td><b>${esc(p.siswa_nama)}</b></td>
           <td><span class="nb-badge ${p.tipe === 'code' ? 'yellow' : 'blue'}">${p.tipe.toUpperCase()}${p.bahasa ? ' · ' + esc(p.bahasa) : ''}</span></td>
-          <td>${p.file_path ? `<a href="${FILE_BASE_URL + p.file_path}" target="_blank"><b>⬇ Unduh</b></a>` : '—'}
+          <td>${p.file_path ? `<a href="${apiFile(p.file_path)}" target="_blank"><b>⬇ Unduh</b></a>` : '—'}
             ${p.kode_program ? `<details><summary>Lihat kode</summary><pre class="mono" style="white-space:pre-wrap;font-size:12px">${esc(p.kode_program.slice(0, 2000))}</pre></details>` : ''}</td>
           <td>${p.status === 'dinilai' ? `<span class="nb-badge green">${p.nilai}</span>` : `
             <div class="row"><input id="nilai-${p.id}" type="number" min="0" max="100" class="nb-input" style="width:80px" placeholder="0-100" aria-label="Nilai" />
@@ -164,7 +178,7 @@
   // ---------- Kuis + soal ----------
   async function muatKuis() {
     try {
-      const list = await apiFetch(`/kelas/${kelasId}/kuis`);
+      const list = await apiFetch(`/kelas/${kelasId}/kuis?q=${encodeURIComponent(qKuis)}`);
       cacheKuis = list;
       const box = document.getElementById('list-kuis');
       const grup = grupPertemuan(list);
@@ -177,7 +191,8 @@
           const el = document.createElement('div');
           el.className = 'nb-card mb';
           el.innerHTML = `<div class="nb-card-body"><div class="row"><b>${esc(k.judul)}</b><span style="flex:1"></span><span class="nb-badge blue">${k.jml_soal} soal</span>
-            <button class="nb-btn nb-btn-sm" data-edit-kuis="${k.id}">Ubah</button></div>
+            <button class="nb-btn nb-btn-sm" data-edit-kuis="${k.id}">Ubah</button>
+            <button class="nb-btn nb-btn-sm nb-btn-danger" data-hapus-kuis="${k.id}">Hapus</button></div>
             ${k.deskripsi ? `<p class="nb-hint">${esc(k.deskripsi)}</p>` : ''}<div class="kuis-box mt"></div></div>`;
           box.appendChild(el);
           renderKelolaKuis(k, el.querySelector('.kuis-box'));
@@ -201,26 +216,50 @@
   async function renderKelolaKuis(k, box) {
     const soal = await apiFetch(`/kuis/${k.id}/soal`).catch(() => []);
     const hasil = await apiFetch(`/kuis/${k.id}/hasil`).catch(() => []);
+    cacheKuisDetail[k.id] = { soal, hasil };
     box.innerHTML = `
       <b>Soal (${soal.length}):</b>
-      ${soal.map((s, i) => `<div class="nb-hint">${i + 1}. ${esc(s.pertanyaan)} <b>[${s.kunci}]</b></div>`).join('') || '<div class="nb-hint">Belum ada soal.</div>'}
-      <details class="mt"><summary><b>+ Tambah soal PG</b></summary>
+      ${soal.map((s, i) => `<div class="row mb"><b>${i + 1}.</b><span style="flex:1">${esc(s.pertanyaan)}
+        <span class="nb-badge ${(s.tipe || 'pg') === 'essay' ? 'pink' : 'blue'}">${(s.tipe || 'pg').toUpperCase()}</span>${(s.tipe || 'pg') === 'pg' ? ` <b>[${s.kunci}]</b>` : ` <span class="nb-hint">🔑 ${esc((s.kunci_esai || '').slice(0, 60) || 'manual')}</span>`}</span>
+        ${(s.tipe || 'pg') === 'pg' ? `<select id="kunci-${s.id}" class="nb-select" style="max-width:76px">${['A', 'B', 'C', 'D'].map((o) => `<option${o === s.kunci ? ' selected' : ''}>${o}</option>`).join('')}</select><button class="nb-btn nb-btn-sm" data-simpan-kunci="${s.id}" title="Simpan kunci">✓</button>` : ''}
+        <button class="nb-btn nb-btn-sm nb-btn-danger" data-hapus-soal="${s.id}" title="Hapus soal">✕</button></div>`).join('') || '<div class="nb-hint">Belum ada soal.</div>'}
+      <details class="mt"><summary><b>+ Tambah soal (PG / Esai)</b></summary>
+        <div class="row mt"><select id="st-${k.id}" class="nb-select" style="max-width:160px"><option value="pg">Pilihan Ganda</option><option value="essay">Esai</option></select></div>
         <input id="sq-${k.id}" class="nb-input mt" placeholder="Pertanyaan" />
-        <div class="row mt"><input id="sa-${k.id}" class="nb-input" placeholder="Opsi A" /><input id="sb-${k.id}" class="nb-input" placeholder="Opsi B" /></div>
+        <textarea id="skesai-${k.id}" class="nb-textarea mt" rows="2" placeholder="🔑 Kunci jawaban esai (kata kunci dipisah spasi/koma) — hanya untuk Esai, dipakai penilaian otomatis"></textarea>
+        <div class="row mt"><input id="sa-${k.id}" class="nb-input" placeholder="Opsi A (PG saja)" /><input id="sb-${k.id}" class="nb-input" placeholder="Opsi B" /></div>
         <div class="row mt"><input id="sc-${k.id}" class="nb-input" placeholder="Opsi C" /><input id="sd-${k.id}" class="nb-input" placeholder="Opsi D" />
-        <select id="sk-${k.id}" class="nb-select" style="max-width:110px"><option>A</option><option>B</option><option>C</option><option>D</option></select></div>
+        <select id="sk-${k.id}" class="nb-select" style="max-width:110px"><option>A</option><option>B</option><option>C</option><option>D</option></select>
+        <input id="sbobot-${k.id}" type="number" min="1" max="100" value="10" class="nb-input" style="max-width:90px" aria-label="Poin" /></div>
         <button class="nb-btn nb-btn-sm nb-btn-primary mt" data-tambah-soal="${k.id}">Simpan Soal</button>
       </details>
-      <div class="mt"><b>Hasil (${hasil.length}):</b> ${hasil.map((h) => `<span class="nb-badge green">${esc(h.siswa_nama)}: ${h.skor}</span>`).join(' ') || '<span class="nb-hint">Belum ada yang mengerjakan.</span>'}</div>`;
+      <div class="mt"><b>Hasil (${hasil.length}):</b> ${hasil.map((h) => `
+        <div class="row mb"><span class="nb-badge green">${esc(h.siswa_nama)}: ${h.skor}</span><span style="flex:1"></span>
+        <button class="nb-btn nb-btn-sm" data-periksa="${k.id}:${h.id}">Periksa Esai & Nilai</button></div>
+        <div id="periksa-${h.id}"></div>`).join('') || '<span class="nb-hint">Belum ada yang mengerjakan.</span>'}</div>`;
   }
 
-  document.getElementById('form-kuis').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    try {
-        await apiFetch(`/kelas/${kelasId}/kuis`, { method: 'POST', body: { judul: fk_judul.value, deskripsi: fk_deskripsi.value, durasi_menit: fk_durasi.value || 30, deadline: fk_deadline.value || null, pertemuan: document.getElementById('fk_pert').value } });
-      toast('Kuis dibuat', 'green'); e.target.reset(); muatKuis();
-    } catch (err) { toast(err.message, 'red'); }
-  });
+  function tampilPeriksa(kuisId, hasilId) {
+    const cache = cacheKuisDetail[kuisId];
+    const box = document.getElementById('periksa-' + hasilId);
+    if (!cache || !box) return;
+    const h = cache.hasil.find((x) => x.id === Number(hasilId));
+    if (!h) return;
+    let jwb = {};
+    try { jwb = JSON.parse(h.jawaban || '{}'); } catch {}
+    box.innerHTML = `<div class="nb-card mb"><div class="nb-card-body">
+      <b>Jawaban ${esc(h.siswa_nama || '')}:</b>
+      ${cache.soal.map((s, i) => `<div class="mb"><b>${i + 1}. ${esc(s.pertanyaan)}</b><br>
+        ${(s.tipe || 'pg') === 'essay'
+          ? `<span class="nb-hint">🔑 Kunci: ${esc(s.kunci_esai || '(tanpa kunci — nilai manual)')}</span><span class="nb-hint">Jawaban esai:</span><div class="nb-alert nb-alert-blue">${esc(jwb[s.id] || '(kosong)')}</div>`
+          : `<span class="nb-hint">Jawab: <b>${esc(jwb[s.id] || '-')}</b> · Kunci: <b>${s.kunci}</b> ${String(jwb[s.id] || '').toUpperCase() === s.kunci ? '✓' : '✗'}</span>`}</div>`).join('')}
+      <div class="row mt"><input id="skor-${h.id}" type="number" min="0" max="100" class="nb-input" style="width:90px" value="${h.skor}" aria-label="Nilai final" />
+      <input id="sfb-${h.id}" class="nb-input" style="flex:1" value="${esc(h.feedback || '')}" placeholder="Feedback" aria-label="Feedback" />
+      <button class="nb-btn nb-btn-sm nb-btn-primary" data-simpan-final="${h.id}">Simpan Nilai</button></div>
+    </div></div>`;
+  }
+
+  // (Pembuatan kuis pindah ke halaman khusus buat-kuis.html)
 
   document.addEventListener('click', async (e) => {
     const q = (s) => e.target.closest(s);
@@ -252,9 +291,12 @@
       catch (err) { toast(err.message, 'red'); }
     }
     if ((b = q('[data-lihat-kumpul]'))) muatPengumpulan(b.dataset.lihatKumpul, b.closest('.nb-card').querySelector('.kumpul-box'));
-    if ((b = q('[data-hapus-tugas]')) && confirm('Hapus tugas ini?')) {
-      try { await apiFetch(`/tugas/${b.dataset.hapusTugas}`, { method: 'DELETE' }); muatTugas(); }
-      catch (err) { toast(err.message, 'red'); }
+    if ((b = q('[data-hapus-tugas]')) && confirm('Hapus tugas + SEMUA pengumpulan, file, dan nilainya? (siswa langsung hilang dari layarnya)')) {
+      try {
+        const r = await apiFetch(`/tugas/${b.dataset.hapusTugas}`, { method: 'DELETE' });
+        toast(`🗑 Tugas + ${r.pengumpulan} pengumpulan & ${r.file_dihapus} file terhapus`, 'green');
+        muatTugas();
+      } catch (err) { toast(err.message, 'red'); }
     }
     if ((b = q('[data-simpan-nilai]'))) {
       const pid = b.dataset.simpanNilai;
@@ -265,8 +307,41 @@
       const id = b.dataset.tambahSoal;
       const g = (x) => document.getElementById(x + '-' + id).value;
       try {
-        await apiFetch(`/kuis/${id}/soal`, { method: 'POST', body: { pertanyaan: g('sq'), opsi_a: g('sa'), opsi_b: g('sb'), opsi_c: g('sc'), opsi_d: g('sd'), kunci: g('sk') } });
+        await apiFetch(`/kuis/${id}/soal`, { method: 'POST', body: { pertanyaan: g('sq'), opsi_a: g('sa'), opsi_b: g('sb'), opsi_c: g('sc'), opsi_d: g('sd'), kunci: g('sk'), tipe: g('st'), bobot: g('sbobot'), kunci_esai: document.getElementById('skesai-' + id).value } });
         toast('Soal ditambahkan', 'green'); muatKuis();
+      } catch (err) { toast(err.message, 'red'); }
+    }
+    if ((b = q('[data-hapus-kuis]')) && confirm('Hapus kuis + SEMUA soal, kunci esai, dan hasil siswa? (transkrip ikut bersih)')) {
+      try {
+        const r = await apiFetch(`/kuis/${b.dataset.hapusKuis}`, { method: 'DELETE' });
+        toast(`🗑 Kuis + ${r.soal} soal & ${r.hasil} hasil terhapus`, 'green');
+        muatKuis();
+      } catch (err) { toast(err.message, 'red'); }
+    }
+    if ((b = q('[data-hapus-soal]')) && confirm('Hapus soal ini?')) {
+      try { await apiFetch(`/kuis/soal/${b.dataset.hapusSoal}`, { method: 'DELETE' }); toast('Soal dihapus', 'green'); muatKuis(); }
+      catch (err) { toast(err.message, 'red'); }
+    }
+    if ((b = q('[data-simpan-kunci]'))) {
+      try { await apiFetch(`/kuis/soal/${b.dataset.simpanKunci}`, { method: 'PUT', body: { kunci: document.getElementById('kunci-' + b.dataset.simpanKunci).value } }); toast('Kunci diperbarui ✓', 'green'); muatKuis(); }
+      catch (err) { toast(err.message, 'red'); }
+    }
+    if ((b = q('[data-periksa]'))) {
+      const [kid, hid] = b.dataset.periksa.split(':');
+      tampilPeriksa(Number(kid), Number(hid));
+    }
+    if ((b = q('[data-simpan-final]'))) {
+      try {
+        await apiFetch(`/kuis/hasil/${b.dataset.simpanFinal}/nilai`, { method: 'PUT', body: { skor: Number(document.getElementById('skor-' + b.dataset.simpanFinal).value), feedback: document.getElementById('sfb-' + b.dataset.simpanFinal).value } });
+        toast('Nilai final tersimpan ✓', 'green'); muatKuis();
+      } catch (err) { toast(err.message, 'red'); }
+    }
+    if ((b = q('[data-reset-pw]'))) {
+      const pw = prompt(`Password baru untuk ${b.dataset.nama} (min 6 karakter):`, '');
+      if (pw === null) return;
+      try {
+        await apiFetch(`/users/${b.dataset.resetPw}/reset-password`, { method: 'PUT', body: { password_baru: pw } });
+        toast(`🔑 Password ${b.dataset.nama} direset menjadi: ${pw}`, 'green');
       } catch (err) { toast(err.message, 'red'); }
     }
     if ((b = q('[data-ban]'))) {
@@ -296,6 +371,7 @@
       document.getElementById('list-anggota').innerHTML = list.length
         ? list.map((a) => `<div class="row mb"><b>${esc(a.nama)}</b><span class="nb-hint">${esc(a.email)}</span>${a.status !== 'aktif' ? `<span class="nb-badge yellow">keluar</span>` : ''}<span style="flex:1"></span>
             <a class="nb-btn nb-btn-sm" href="kelas-siswa.html?id=${kelasId}" title="Lihat sebagai siswa">👁 Pantau</a>
+            <button class="nb-btn nb-btn-sm nb-btn-blue" data-reset-pw="${a.id}" data-nama="${esc(a.nama)}">Reset PW</button>
             <button class="nb-btn nb-btn-sm nb-btn-danger" data-ban="${a.id}" data-nama="${esc(a.nama)}">Kick/Ban</button></div>`).join('')
         : `<div class="nb-hint">Belum ada siswa. Bagikan kode kelas!</div>`;
     } catch (e) { toast(e.message, 'red'); }

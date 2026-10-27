@@ -62,3 +62,9 @@ function toast(msg, type = 'yellow') {
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
+
+// URL unduh terkunci: unduhan wajib token + lolos cek hak akses server.
+function apiFile(relPath) {
+  const t = localStorage.getItem('elearning_token') || '';
+  return `${API_BASE_URL}/file?f=${encodeURIComponent(relPath)}&token=${encodeURIComponent(t)}`;
+}

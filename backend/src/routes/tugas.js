@@ -3,9 +3,11 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const db = require('../config/db');
+const keamanan = require('../utils/keamanan');
 const { verifyToken, requireRole } = require('../middleware/auth');
 const { uploadTugas } = require('../middleware/upload');
 const { notifyKelas, notifyUser, catatAktivitas } = require('../utils/notifikasi');
+const { pagine } = require('../utils/paginasi');
 
 const router = express.Router();
 const ok = (res, data, message = 'OK', code = 200) => res.status(code).json({ success: true, message, data });
@@ -29,7 +31,10 @@ router.get('/kelas/:id/tugas', verifyToken, (req, res) => {
     const st = db.prepare('SELECT status FROM kelas_member WHERE kelas_id = ? AND siswa_id = ?').get(kelas.id, req.user.id);
     if (!st || st.status !== 'aktif') return fail(res, 'Masuk kembali ke kelas untuk mengakses tugas.', 403);
   }
-  const rows = db.prepare('SELECT * FROM tugas WHERE kelas_id = ? ORDER BY id DESC').all(kelas.id);
+  const { limit, offset, q } = pagine(req);
+  const cari = q ? ' AND (judul LIKE ? OR deskripsi LIKE ?)' : '';
+  const args = q ? [kelas.id, `%${q}%`, `%${q}%`] : [kelas.id];
+  const rows = db.prepare(`SELECT * FROM tugas WHERE kelas_id = ?${cari} ORDER BY id DESC LIMIT ? OFFSET ?`).all(...args, limit, offset);
   if (req.user.role === 'siswa') {
     const hasil = rows.map((t) => ({
       ...t,
@@ -73,12 +78,22 @@ router.delete('/tugas/:tugasId', verifyToken, requireRole('mentor'), (req, res) 
   const { tugas, kelas } = kelasOf(req.params.tugasId);
   if (!tugas) return fail(res, 'Tugas tidak ditemukan', 404);
   if (kelas.mentor_id !== req.user.id) return fail(res, 'Bukan kelas milikmu', 403);
-  db.prepare('DELETE FROM tugas WHERE id = ?').run(tugas.id);
-  return ok(res, null, 'Tugas dihapus');
+  // kumpulkan SEMUA file fisik pengumpulan siswa sebelum baris DB di-cascade
+  const files = db.prepare('SELECT file_path FROM pengumpulan_tugas WHERE tugas_id = ? AND file_path IS NOT NULL').all(tugas.id);
+  const jmlKumpul = db.prepare('SELECT COUNT(*) c FROM pengumpulan_tugas WHERE tugas_id = ?').get(tugas.id).c;
+  db.prepare('DELETE FROM tugas WHERE id = ?').run(tugas.id); // CASCADE: pengumpulan (file tercatat, nilai, feedback)
+  let fileHilang = 0;
+  for (const f of files) {
+    try { fs.unlinkSync(path.join(__dirname, '..', '..', String(f.file_path).replace(/^\/+/, ''))); fileHilang++; } catch {}
+  }
+  return ok(res, { pengumpulan: jmlKumpul, file_dihapus: fileHilang }, `Tugas + ${jmlKumpul} pengumpulan & ${fileHilang} file terhapus total`);
 });
 
 // POST /api/tugas/tugas/:tugasId/kumpul (siswa: multipart {file} ATAU JSON {tipe:'code', bahasa, kode_program})
 router.post('/tugas/:tugasId/kumpul', verifyToken, requireRole('siswa'), (req, res) => {
+  // Batasi kirim tugas per siswa (30 kiriman/15 mnt) untuk cegah spam file.
+  const batas = keamanan.bukaLimit('kumpul:' + req.user.id, 30, 15 * 60 * 1000);
+  if (!batas.boleh) return fail(res, `Terlalu banyak kirim. Coba lagi dalam ${batas.tunggu} detik.`, 429);
   const ctype = req.headers['content-type'] || '';
   if (ctype.includes('multipart/form-data')) {
     uploadTugas.single('file')(req, res, (e) => {

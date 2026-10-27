@@ -14,6 +14,19 @@ const db = new DatabaseSync(dbPath);
 db.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA synchronous = NORMAL;");
 try { db.exec('ALTER TABLE users ADD COLUMN last_seen DATETIME'); } catch {} // DB lama → tambah kolom kehadiran
 try { db.exec('ALTER TABLE users ADD COLUMN username TEXT'); } catch {} // login siswa pakai username
+try { db.exec('ALTER TABLE users ADD COLUMN is_utama INTEGER DEFAULT 0'); } catch {} // mentor utama (otorisasi daftar mentor lain)
+try { db.exec("ALTER TABLE users ADD COLUMN diblokir INTEGER DEFAULT 0"); } catch {} // blokir akun global oleh mentor (bisa dibuka)
+try { db.exec('ALTER TABLE users ADD COLUMN blokir_alasan TEXT'); } catch {}
+try { db.exec('ALTER TABLE users ADD COLUMN diblokir_pada DATETIME'); } catch {}
+try {
+  // Mentor utama = mentor dengan id terkecil (pertama); bila belum ada sama sekali → tetapkan.
+  const adaUtama = db.prepare('SELECT COUNT(*) c FROM users WHERE role = ? AND is_utama = 1').get('mentor').c;
+  if (adaUtama === 0) {
+    db.prepare(`UPDATE users SET is_utama = 1
+      WHERE role = 'mentor'
+        AND id = (SELECT id FROM users WHERE role = 'mentor' ORDER BY id LIMIT 1)`).run();
+  }
+} catch {}
 try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username)'); } catch {}
 try { db.exec("ALTER TABLE kelas_member ADD COLUMN status TEXT DEFAULT 'aktif'"); } catch {} // keluar/masuk tanpa hapus
 try { db.exec('ALTER TABLE materi ADD COLUMN pertemuan INTEGER DEFAULT 1'); } catch {}
@@ -29,6 +42,11 @@ try { db.exec(`CREATE TABLE blokir_permanen (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 )`); } catch {}
 try { db.exec('ALTER TABLE blokir_permanen ADD COLUMN username TEXT'); } catch {}
+try { db.exec("ALTER TABLE soal ADD COLUMN tipe TEXT DEFAULT 'pg'"); } catch {} // pg | essay
+try { db.exec('ALTER TABLE hasil_kuis ADD COLUMN mulai_pada DATETIME'); } catch {} // timer mulai
+try { db.exec('ALTER TABLE hasil_kuis ADD COLUMN feedback TEXT'); } catch {} // nilai final esai
+try { db.exec('ALTER TABLE soal ADD COLUMN bobot INTEGER DEFAULT 1'); } catch {} // nilai per soal
+try { db.exec('ALTER TABLE soal ADD COLUMN kunci_esai TEXT'); } catch {} // kunci jawaban esai
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (

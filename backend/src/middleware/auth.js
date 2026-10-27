@@ -17,13 +17,19 @@ function verifyToken(req, res, next) {
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
   if (!token) return res.status(401).json({ success: false, message: 'Belum login (token kosong)', data: null });
-  try {
-    req.user = keamanan.cekToken(token);
-    tandaiHadir(req.user.id); // setiap request API = bukti user sedang online
-    next();
-  } catch {
+  let user;
+  try { user = keamanan.cekToken(token); } catch {
     return res.status(401).json({ success: false, message: 'Token tidak valid / kedaluwarsa', data: null });
   }
+  // Akun diblokir global → semua akses ditolak sampai mentor membuka blokir.
+  const akun = db.prepare('SELECT diblokir FROM users WHERE id = ?').get(user.id);
+  if (!akun) return res.status(401).json({ success: false, message: 'Akun tidak ditemukan / sudah dihapus', data: null });
+  if (akun.diblokir) {
+    return res.status(403).json({ success: false, message: 'Akun Anda diblokir oleh mentor. Hubungi mentor untuk dibuka.', data: null });
+  }
+  req.user = user;
+  tandaiHadir(req.user.id); // setiap request API = bukti user sedang online
+  next();
 }
 
 function requireRole(...roles) {

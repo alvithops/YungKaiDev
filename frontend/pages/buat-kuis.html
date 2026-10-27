@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Buat Kuis — Mentor</title>
+  <link rel="stylesheet" href="../css/neo-brutal.css" />
+</head>
+<body data-page="class" data-require="mentor">
+<div class="app" id="app">
+  <aside class="sidebar" aria-label="Navigasi utama">
+    <div class="brand"><span class="brand-mark">E</span> E-LEARNING</div>
+    <nav class="nb-nav">
+      <div class="nb-navlabel">Mentor</div>
+      <a class="nb-navlink" data-nav="dashboard" href="dashboard-mentor.html">📊 Dashboard</a>
+      <a class="nb-navlink" data-nav="class" href="class-mentor.html">📚 Class</a>
+      <a class="nb-navlink" data-nav="transkrip" href="transkrip-mentor.html">🎓 Transkrip</a>
+      <a class="nb-navlink" data-nav="announcement" href="announcement.html">📢 Announcement</a>
+      <a class="nb-navlink" data-nav="pantau" href="pantau.html">👁 Pantau Siswa</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="profile-chip"><div class="avatar" data-profile-avatar>?</div><div><b data-profile-nama>...</b><br><span class="nb-badge dark" style="font-size:10px" data-profile-role>MENTOR</span></div></div>
+      <button class="nb-btn nb-btn-sm nb-btn-block" data-logout>Keluar</button>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+  <div class="main-col">
+    <header class="topbar">
+      <button id="btnHamburger" class="nb-btn nb-btn-sm hamburger" aria-expanded="false" aria-label="Buka menu">☰</button>
+      <h1 class="page-title">Buat Kuis Baru</h1>
+      <span style="flex:1"></span>
+      <a class="nb-btn nb-btn-sm" id="btn-kembali" href="class-mentor.html">← Kembali</a>
+    </header>
+    <main class="content" style="max-width:760px">
+      <!-- LANGKAH 1: info kuis -->
+      <div class="nb-card mb" id="step-1">
+        <div class="nb-card-header yellow">LANGKAH 1 — INFO KUIS</div>
+        <div class="nb-card-body">
+          <div id="err1"></div>
+          <form id="form-info">
+            <label class="nb-label" for="k_judul">Judul kuis</label>
+            <input id="k_judul" class="nb-input" required placeholder="cth: Kuis Pertemuan 3" />
+            <label class="nb-label mt" for="k_deskripsi">Deskripsi</label>
+            <input id="k_deskripsi" class="nb-input" placeholder="Petunjuk pengerjaan" />
+            <div class="grid-3 mt">
+              <div><label class="nb-label" for="k_pert">Pertemuan</label><select id="k_pert" class="nb-select"></select></div>
+              <div><label class="nb-label" for="k_durasi">Durasi (menit)</label><input id="k_durasi" type="number" min="1" class="nb-input" value="30" /></div>
+              <div><label class="nb-label" for="k_deadline">Deadline</label><input id="k_deadline" type="datetime-local" class="nb-input" /></div>
+            </div>
+            <button class="nb-btn nb-btn-primary nb-btn-block mt" type="submit">Buat Kuis → Lanjut Isi Soal</button>
+          </form>
+        </div>
+      </div>
+      <!-- LANGKAH 2: soal -->
+      <div class="nb-card mb" id="step-2" style="display:none">
+        <div class="nb-card-header blue"><span id="judul-step2">LANGKAH 2 — SOAL</span><span class="nb-badge dark" id="total-poin">0 poin</span></div>
+        <div class="nb-card-body">
+          <div id="err2"></div>
+          <div id="list-soal"></div>
+          <div class="nb-card mt"><div class="nb-card-body">
+            <b>+ Tambah Soal</b>
+            <div class="row mt">
+              <select id="s_tipe" class="nb-select" style="max-width:170px"><option value="pg">Pilihan Ganda</option><option value="essay">Esai</option></select>
+              <input id="s_bobot" type="number" min="1" max="100" value="10" class="nb-input" style="max-width:130px" aria-label="Nilai soal (poin)" />
+              <span class="nb-hint">poin</span>
+            </div>
+            <textarea id="s_tanya" class="nb-textarea mt" rows="2" placeholder="Pertanyaan..."></textarea>
+            <div id="blok-opsi">
+              <div class="row mt"><input id="s_a" class="nb-input" placeholder="Opsi A" /><input id="s_b" class="nb-input" placeholder="Opsi B" /></div>
+              <div class="row mt"><input id="s_c" class="nb-input" placeholder="Opsi C" /><input id="s_d" class="nb-input" placeholder="Opsi D" />
+              <select id="s_kunci" class="nb-select" style="max-width:110px" aria-label="Kunci"><option>A</option><option>B</option><option>C</option><option>D</option></select></div>
+            </div>
+            <button class="nb-btn nb-btn-sm nb-btn-primary mt" id="btn-tambah-soal">+ Tambah ke Daftar</button>
+          </div></div>
+          <a class="nb-btn nb-btn-primary nb-btn-block mt" id="btn-selesai" href="#">Selesai → Kembali ke Kelas ✓</a>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+<script src="../js/config.js"></script>
+<script src="../js/realtime.js"></script>
+<script src="../js/api.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/layout.js"></script>
+<script>
+  (async () => {
+    await requireAuth();
+    const kelasId = new URLSearchParams(location.search).get('id');
+    if (!kelasId) { location.href = 'class-mentor.html'; return; }
+    document.getElementById('btn-kembali').href = `kelas-mentor.html?id=${kelasId}`;
+    document.getElementById('k_pert').innerHTML = Array.from({ length: 14 }, (_, i) => `<option value="${i + 1}">Pertemuan ${i + 1}</option>`).join('');
+    let kuisId = null;
+
+    document.getElementById('s_tipe').addEventListener('change', (e) => {
+      document.getElementById('blok-opsi').style.display = e.target.value === 'essay' ? 'none' : '';
+    });
+
+    document.getElementById('form-info').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        const k = await apiFetch(`/kelas/${kelasId}/kuis`, { method: 'POST', body: { judul: k_judul.value, deskripsi: k_deskripsi.value, pertemuan: k_pert.value, durasi_menit: k_durasi.value || 30, deadline: k_deadline.value || null } });
+        kuisId = k.id;
+        document.getElementById('step-1').style.display = 'none';
+        document.getElementById('step-2').style.display = '';
+        document.getElementById('judul-step2').textContent = 'LANGKAH 2 — SOAL: ' + k.judul.toUpperCase();
+        document.getElementById('btn-selesai').href = `kelas-mentor.html?id=${kelasId}#kuis`;
+        toast('Kuis dibuat! Sekarang isi soalnya.', 'green');
+        muatSoal();
+      } catch (err) {
+        document.getElementById('err1').innerHTML = `<div class="nb-alert nb-alert-red mb">⚠ ${esc(err.message)}</div>`;
+      }
+    });
+
+    async function muatSoal() {
+      try {
+        const list = await apiFetch(`/kuis/${kuisId}/soal`);
+        const box = document.getElementById('list-soal');
+        const total = list.reduce((a, s) => a + (Number(s.bobot) || 1), 0);
+        document.getElementById('total-poin').textContent = `${list.length} soal · ${total} poin`;
+        box.innerHTML = list.length ? '' : `<div class="nb-hint">Belum ada soal. Tambahkan di bawah (minimal 1).</div>`;
+        list.forEach((s, i) => {
+          const el = document.createElement('div');
+          el.className = 'row mb';
+          el.innerHTML = `<b>${i + 1}.</b><span style="flex:1">${esc(s.pertanyaan)}
+            <span class="nb-badge ${(s.tipe || 'pg') === 'essay' ? 'pink' : 'blue'}">${(s.tipe || 'pg').toUpperCase()}</span>
+            <span class="nb-badge yellow">${s.bobot || 1} poin</span>${(s.tipe || 'pg') === 'pg' ? ` <b>[${s.kunci}]</b>` : ''}</span>
+            <button class="nb-btn nb-btn-sm nb-btn-danger" data-hapus="${s.id}">✕</button>`;
+          box.appendChild(el);
+        });
+      } catch (e) { toast(e.message, 'red'); }
+    }
+
+    document.getElementById('btn-tambah-soal').addEventListener('click', async () => {
+      const tipe = s_tipe.value;
+      const bobot = Math.min(100, Math.max(1, Number(s_bobot.value) || 10));
+      if (!s_tanya.value.trim()) {
+        document.getElementById('err2').innerHTML = `<div class="nb-alert nb-alert-red mb">⚠ Pertanyaan wajib diisi.</div>`;
+        return;
+      }
+      try {
+        await apiFetch(`/kuis/${kuisId}/soal`, { method: 'POST', body: { pertanyaan: s_tanya.value, opsi_a: s_a.value || '-', opsi_b: s_b.value || '-', opsi_c: s_c.value || '-', opsi_d: s_d.value || '-', kunci: s_kunci.value, tipe, bobot } });
+        s_tanya.value = ''; s_a.value = ''; s_b.value = ''; s_c.value = ''; s_d.value = '';
+        document.getElementById('err2').innerHTML = '';
+        toast('Soal ditambahkan ✓', 'green');
+        muatSoal();
+      } catch (err) {
+        document.getElementById('err2').innerHTML = `<div class="nb-alert nb-alert-red mb">⚠ ${esc(err.message)}</div>`;
+      }
+    });
+
+    document.addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-hapus]');
+      if (b && confirm('Hapus soal ini?')) {
+        try { await apiFetch(`/kuis/soal/${b.dataset.hapus}`, { method: 'DELETE' }); muatSoal(); }
+        catch (err) { toast(err.message, 'red'); }
+      }
+    });
+    dengarRefresh(muatSoalSafe);
+    function muatSoalSafe() { if (kuisId) muatSoal(); }
+  })();
+</script>
+</body>
+</html>

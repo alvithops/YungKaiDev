@@ -4,10 +4,15 @@ Base URL: `http://localhost:3000/api`
 Auth: `Authorization: Bearer <JWT>` kecuali login/register.
 Format: `{ success: bool, message: string, data: any }`
 
-## Auth
-- `POST /auth/register` {nama, email, password, role} → {token, user}
-- `POST /auth/login` {email, password} → {token, user}
-- `GET /auth/me` (JWT) → user
+## Auth (terpisah per peran + keamanan terpusat `utils/keamanan.js`)
+- `POST /auth/register` {nama, username (wajib siswa), email, password, role} → {token, user}
+- `POST /auth/login-siswa` {username, password} → tolak akun mentor (403)
+- `POST /auth/login-mentor` {email, password} → tolak akun siswa (403), tanpa registrasi
+- `POST /auth/login` (lama, kompatibel) | `GET /auth/me` (JWT) → user + banned_dari
+- `DELETE /auth/me` (JWT) → hapus akun sendiri
+- `POST /auth/lupa-password` (siswa, tanpa login) {username, email, password_baru} → reset mandiri bila pasangan cocok (rate-limit); dipicu UI setelah 3x gagal di login-siswa
+- Rate-limit: 5x gagal/15 mnt (429). Email terblokir permanent: login & daftar ditolak.
+- `PUT /users/:id/reset-password` (mentor, siswa di kelasnya) {password_baru} — ganti lupa password tanpa SMTP
 
 ## Kelas
 - `POST /kelas` (mentor) {nama_kelas, deskripsi} → {id, kode_kelas}
@@ -25,8 +30,9 @@ Format: `{ success: bool, message: string, data: any }`
 > Semua modul/tugas/kuis punya `pertemuan` 1–14 (default 1, otomatis dijepit).
 - `GET /kelas/:id/materi` → list
 - `POST /kelas/:id/materi` (mentor, multipart) {judul, deskripsi, link_video, file} → materi
-- `PUT /materi/:materiId` (mentor) → update
+- `PUT /materi/:materiId` (mentor) → update metadata + opsional ganti file (multipart `file` / `hapus_file=1`)
 - `DELETE /materi/:materiId` (mentor) → hapus (+ hapus file)
+- Unduhan terkunci: `GET /api/file?f=/uploads/...&token=JWT` (cek hak akses; /uploads tak lagi publik)
 
 ## Tugas & Pengumpulan
 - `GET /kelas/:id/tugas` → list + status kumpul/nilai (untuk siswa)
@@ -39,14 +45,19 @@ Format: `{ success: bool, message: string, data: any }`
 - `PUT /pengumpulan/:id/nilai` (mentor) {nilai, feedback} → dinilai
 - `GET /tugas/:tugasId/nilai-saya` (siswa) → nilai + feedback
 
-## Kuis
+## Kuis (PG + esai, timer server, soal diacak)
 - `GET /kelas/:id/kuis` → list
-- `POST /kelas/:id/kuis` (mentor) {judul, deskripsi, durasi_menit, deadline}
-- `POST /kuis/:kuisId/soal` (mentor) {pertanyaan, opsi_a..d, kunci}
-- `PUT /soal/:soalId`, `DELETE /soal/:soalId` (mentor)
-- `GET /kuis/:kuisId/soal` (siswa: tanpa kunci; mentor: dengan kunci)
-- `POST /kuis/:kuisId/submit` (siswa) {jawaban: {soalId: 'A'}} → {skor}
+- `POST /kelas/:id/kuis` (mentor) {judul, deskripsi, durasi_menit, deadline, pertemuan}
+- `PUT /kuis/:kuisId`, `DELETE /kuis/:kuisId` (mentor)
+- `POST /kuis/:kuisId/soal` (mentor) {pertanyaan, opsi_a..d, kunci, tipe: pg|essay, bobot, kunci_esai (kata kunci esai untuk auto-nilai semantik ≥60%)}
+- `PUT /kuis/soal/:soalId`, `DELETE /kuis/soal/:soalId` (mentor, mis. ubah kunci)
+- `PUT /kuis/soal/:soalId`, `DELETE /kuis/soal/:soalId` (mentor, mis. ubah kunci)
+- `GET /kuis/:kuisId/soal` (siswa: acak + tanpa kunci; mentor: berurutan + kunci)
+- `POST /kuis/:kuisId/mulai` (siswa) → catat mulai_pada
+- `POST /kuis/:kuisId/submit` (siswa, wajib mulai; ditolak bila lewat durasi+60 dtk) → PG otomatis, esai menunggu
+- `PUT /kuis/hasil/:hasilId/nilai` (mentor) {skor, feedback} → nilai final esai
 - `GET /kuis/:kuisId/hasil` (mentor: semua; siswa: miliknya)
+- List mendukung `?q=&limit=&offset=` (juga materi/tugas/kelas/notifikasi/pengumuman)
 
 ## Diskusi
 - `GET /kelas/:id/diskusi?materi_id=` → thread (parent + balasan)
@@ -73,7 +84,8 @@ Format: `{ success: bool, message: string, data: any }`
 - `PUT /permintaan-akses/:reqId` (mentor) {keputusan:'setuju'|'tolak'}
 - Ban langsung tanpa alasan; login oleh akun ter-ban otomatis jadi permintaan pending + notif harian ke mentor.
 - `POST /blokir-permanen` (mentor) {siswa_id} → hapus akun + file + kunci email/username selamanya (login & daftar ditolak).
-- `GET /blokir-permanen`, `DELETE /blokir-permanen/:id` (buka blokir).
+- `GET /blokir-permanen`, `DELETE /blokir-permanen/:id` (buka blokir),
+  `DELETE /blokir-permanen` (bersihkan seluruh riwayat; email bisa dipakai lagi).
 - `DELETE /kelas/:id/keluar` (siswa) → status `keluar`, data TIDAK dihapus
 - `POST /kelas/:id/masuk` (siswa) → masuk kembali TANPA kode (khusus riwayat anggota)
 - Join via kode saat status keluar → reaktivasi otomatis (kode hanya untuk awal)
@@ -85,7 +97,10 @@ Format: `{ success: bool, message: string, data: any }`
 - `PUT /pengaturan` (mentor) {kunci, nilai}
 - `GET /pengumuman` → 20 terbaru; `POST /pengumuman` (mentor) {judul, isi} → inbox semua siswa; `DELETE /pengumuman/:id` (mentor)
 - `GET /pantau` (mentor) → {kelas[], siswa[{kelas[]}], banned[], pending[]}
-- `GET /kelas/:id/rekap` (mentor) → {kelas, tugas[], siswa[{nilai{tugasId:{p_id,nilai,status}}, rata2, bulanan}]}
+- `GET /pantau/siswa/:id?kelas=` (mentor, read-only) → progres P1–14 (modul dibaca, status/nilai/file tugas, skor kuis)
+- `POST /materi/:id/baca` (siswa) → jejak modul dibaca (tanpa respons berisik)
+- `POST /materi/:id/baca` (siswa) → jejak modul dibaca (tanpa respons berisik)
+- `GET /kelas/:id/rekap` (mentor) → {kelas, tugas[], kuis[], siswa[{nilai, rata2, nilai_kuis, rata_kuis, rata_total, bulanan}]} (nilai kuis masuk otomatis real-time)
 - `GET /aktivitas/ringkas` → {tgl: jumlah} 70 hari terakhir
 - `GET /dashboard/mentor/grafik` → [{tanggal, pendaftar}] 14 hari
 - Login salah 5x → 429 (rate-limit 15 menit).

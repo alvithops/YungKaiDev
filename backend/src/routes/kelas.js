@@ -5,6 +5,7 @@ const path = require('path');
 const db = require('../config/db');
 const { verifyToken, requireRole } = require('../middleware/auth');
 const { generateUniqueKode } = require('../utils/kode');
+const { pagine } = require('../utils/paginasi');
 
 const router = express.Router();
 const ok = (res, data, message = 'OK', code = 200) => res.status(code).json({ success: true, message, data });
@@ -27,17 +28,20 @@ router.post('/kelas', verifyToken, requireRole('mentor'), (req, res) => {
   return ok(res, getKelas(info.lastInsertRowid), 'Kelas dibuat. Bagikan kode ke siswa.', 201);
 });
 
-// GET /api/kelas — mentor: yang dibuat; siswa: yang diikuti
+// GET /api/kelas — mentor: yang dibuat; siswa: yang diikuti (?q=&limit=&offset=)
 router.get('/kelas', verifyToken, (req, res) => {
+  const { limit, offset, q } = pagine(req);
+  const cari = q ? ' AND k.nama_kelas LIKE ?' : '';
+  const like = [`%${q}%`];
   if (req.user.role === 'mentor') {
     const rows = db.prepare(`SELECT k.*, COUNT(km.id) AS jml_siswa,
       (SELECT COUNT(*) FROM pengumpulan_tugas p JOIN tugas t ON t.id = p.tugas_id WHERE t.kelas_id = k.id AND p.status = 'terkumpul') AS perlu_dinilai,
       (SELECT COUNT(*) FROM tugas WHERE kelas_id = k.id) AS jml_tugas,
       (SELECT COUNT(*) FROM kuis WHERE kelas_id = k.id) AS jml_kuis
-      FROM kelas k LEFT JOIN kelas_member km ON km.kelas_id = k.id WHERE k.mentor_id = ? GROUP BY k.id ORDER BY k.id DESC`).all(req.user.id);
+      FROM kelas k LEFT JOIN kelas_member km ON km.kelas_id = k.id WHERE k.mentor_id = ?${cari} GROUP BY k.id ORDER BY k.id DESC LIMIT ? OFFSET ?`).all(req.user.id, ...(q ? like : []), limit, offset);
     return ok(res, rows);
   }
-  const rows = db.prepare(`SELECT k.*, u.nama AS mentor_nama, km.status AS status_saya FROM kelas k JOIN kelas_member km ON km.kelas_id = k.id JOIN users u ON u.id = k.mentor_id WHERE km.siswa_id = ? ORDER BY k.id DESC`).all(req.user.id);
+  const rows = db.prepare(`SELECT k.*, u.nama AS mentor_nama, km.status AS status_saya FROM kelas k JOIN kelas_member km ON km.kelas_id = k.id JOIN users u ON u.id = k.mentor_id WHERE km.siswa_id = ?${cari} ORDER BY k.id DESC LIMIT ? OFFSET ?`).all(req.user.id, ...(q ? like : []), limit, offset);
   return ok(res, rows);
 });
 

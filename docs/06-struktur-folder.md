@@ -1,29 +1,31 @@
 # 06 - Struktur Folder & Rencana Implementasi
 
-## Struktur Final
+## Struktur Final (terkini)
 ```
 pkl-web/
 ├── README.md
-├── docs/*.md
-├── database/schema.sql
+├── docs/*.md (00–11)
+├── database/schema.sql  # skema MySQL acuan laporan
 ├── backend/
-│   ├── package.json
-│   ├── .env.example
-│   ├── server.js
+│   ├── package.json (start, cluster, seed, loadtest, test)
+│   ├── server.js (API + frontend statis + /api/file terkunci + cek telat)
+│   ├── loadtest.js (uji 2000 user) | tests/uji.py (baterai 50 kasus, `npm test`)
 │   ├── src/
-│   │   ├── config/db.js
-│   │   ├── middleware/auth.js (verifyToken, requireRole)
-│   │   ├── middleware/upload.js (multer materi & tugas)
-│   │   ├── routes/auth.js, kelas.js, materi.js, tugas.js, kuis.js, diskusi.js, dashboard.js
-│   │   └── controllers/*.js
-│   └── uploads/
-│       ├── materi/
-│       └── tugas/ (+ .gitkeep)
+│   │   ├── config/db.js (SQLite + migrasi kolom)
+│   │   ├── middleware/auth.js (JWT + last_seen) + upload.js (5MB, ppt/xls/pdf/dll)
+│   │   ├── routes/auth.js (register/login-siswa/login-mentor/me + hapus akun)
+│   │   ├── routes/kelas.js, materi.js (ganti file), tugas.js, kuis.js (esai/timer),
+│   │   │         ekstra.js (notif/pengumuman/ban/permanent/reset-pw/pantau/rekap),
+│   │   │         diskusi-dashboard.js (diskusi + dashboard + grafik)
+│   │   └── utils/keamanan.js, kode.js, notifikasi.js, paginasi.js, cekTelat.js
+│   ├── data/elearning.db (SQLite) | uploads/materi|tugas (file fisik)
 └── frontend/
-    ├── index.html
-    ├── css/style.css (atau tailwind CDN)
-    ├── js/config.js (API_BASE_URL), js/auth.js, js/api.js
-    └── pages/*.html
+    ├── index.html (landing Yungkai) + fotoku.jpeg + mentor.webp
+    ├── css/neo-brutal.css
+    ├── js/config, api (+apiFile), auth, layout, realtime, notifikasi,
+    │   dashboard-mentor/siswa, kelas-mentor/siswa, (+kelas-detail.js dihapus)
+    └── pages/*.html (login-siswa/mentor, dashboards, class-*, kelas-*,
+        tugas-saya, transkrip ×2, announcement, pantau ×2, gabung-kelas)
 ```
 
 ## Tahapan Coding (untuk laporan PKL)
@@ -33,8 +35,8 @@ pkl-web/
 4. **Penilaian** (nilai + feedback).
 5. **Kuis PG + auto-nilai**.
 6. **Diskusi + Dashboard**.
-7. **Frontend**: auth → dashboard → kelas-detail → tugas/kuis.
-8. **Testing**: Postman untuk API, uji upload 10MB, uji kode salah, uji akses role.
+7. **Frontend**: auth terpisah → dashboard → class → kelas per peran.
+8. **Testing**: `npm test` (50 kasus otomatis), `node loadtest.js` (2000 user), uji upload 5MB, uji peran.
 
 ## Konvensi
 - Nama file upload: sanitasi + prefix timestamp untuk hindari tabrakan.

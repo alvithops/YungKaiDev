@@ -25,6 +25,40 @@
       </div>
     </div>
   </div>
+  <!-- Dialog lupa password (muncul setelah 3x gagal) -->
+  <div id="modal-lupa" style="display:none;position:fixed;inset:0;z-index:99;background:rgba(20,20,20,.5);align-items:center;justify-content:center;padding:16px">
+    <div class="nb-card" style="max-width:420px;width:100%">
+      <div class="nb-card-header yellow">LUPA PASSWORD?</div>
+      <div class="nb-card-body" id="modal-isi">
+        <p><b>Apakah Anda lupa password?</b></p>
+        <div class="row mt">
+          <button class="nb-btn nb-btn-primary" id="btn-lupa-ya" style="flex:1">Ya</button>
+          <button class="nb-btn" id="btn-lupa-tidak" style="flex:1">Tidak</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Form reset password -->
+  <div id="modal-reset" style="display:none;position:fixed;inset:0;z-index:99;background:rgba(20,20,20,.5);align-items:center;justify-content:center;padding:16px">
+    <div class="nb-card" style="max-width:420px;width:100%">
+      <div class="nb-card-header blue">RESET PASSWORD</div>
+      <div class="nb-card-body">
+        <div id="err-reset"></div>
+        <form id="form-reset">
+          <label class="nb-label" for="r_username">Username</label>
+          <input id="r_username" class="nb-input mono" readonly aria-label="Username" />
+          <label class="nb-label mt" for="r_email">Email terdaftar</label>
+          <input id="r_email" class="nb-input" type="email" required placeholder="email saat mendaftar" />
+          <label class="nb-label mt" for="r_pw1">Password baru (min 6)</label>
+          <input id="r_pw1" class="nb-input" type="password" required minlength="6" />
+          <label class="nb-label mt" for="r_pw2">Ulangi password baru</label>
+          <input id="r_pw2" class="nb-input" type="password" required minlength="6" />
+          <button class="nb-btn nb-btn-primary nb-btn-block mt" type="submit" id="btn-reset">Ubah Password →</button>
+          <button class="nb-btn nb-btn-block mt" type="button" id="btn-reset-batal">Batal</button>
+        </form>
+      </div>
+    </div>
+  </div>
   <script src="../js/config.js"></script>
   <script src="../js/api.js"></script>
   <script>
@@ -34,18 +68,78 @@
         location.href = u.role === 'mentor' ? 'dashboard-mentor.html' : 'dashboard-siswa.html';
       }
     })();
+    // Batas 3x percobaan gagal per username (level UX; backend tetap rate-limit 5x/15 mnt)
+    const kunciGagal = (u) => 'login_gagal_' + String(u || '').trim().toLowerCase();
+    const jmlGagal = (u) => Number(localStorage.getItem(kunciGagal(u)) || 0);
+    const tambahGagal = (u) => localStorage.setItem(kunciGagal(u), jmlGagal(u) + 1);
+    const resetGagal = (u) => localStorage.removeItem(kunciGagal(u));
+    const modalLupa = document.getElementById('modal-lupa');
+    const modalReset = document.getElementById('modal-reset');
+    const btnSubmit = document.getElementById('btn-submit');
+    function kunciForm(terkunci) {
+      btnSubmit.disabled = terkunci;
+      username.disabled = terkunci;
+      password.disabled = terkunci;
+    }
     document.getElementById('form-login').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const btn = document.getElementById('btn-submit');
-      btn.disabled = true; btn.textContent = 'Memeriksa...';
+      btnSubmit.disabled = true; btnSubmit.textContent = 'Memeriksa...';
       try {
         const data = await apiFetch('/auth/login-siswa', { method: 'POST', body: { username: username.value, password: password.value } });
+        resetGagal(username.value);
         localStorage.setItem('elearning_token', data.token);
         localStorage.setItem('elearning_user', JSON.stringify(data.user));
         location.href = 'dashboard-siswa.html';
       } catch (err) {
-        document.getElementById('err').innerHTML = `<div class="nb-alert nb-alert-red mb">⚠ ${esc(err.message)}</div>`;
-      } finally { btn.disabled = false; btn.textContent = 'Masuk →'; }
+        document.getElementById('err').innerHTML = `<div class="nb-alert nb-alert-red mb">⚠ ${esc(err.message)} (${jmlGagal(username.value) + 1}/3)</div>`;
+        tambahGagal(username.value);
+        if (jmlGagal(username.value) >= 3) {
+          kunciForm(true); // blokir sementara form login
+          modalLupa.style.display = 'flex';
+        }
+      } finally {
+        if (jmlGagal(username.value) < 3) { btnSubmit.disabled = false; btnSubmit.textContent = 'Masuk →'; }
+      }
+    });
+    // Tombol "Tidak" → batalkan, reset hitungan, kembali ke login
+    document.getElementById('btn-lupa-tidak').addEventListener('click', () => {
+      resetGagal(username.value);
+      modalLupa.style.display = 'none';
+      kunciForm(false);
+      btnSubmit.textContent = 'Masuk →';
+      document.getElementById('err').innerHTML = '';
+    });
+    // Tombol "Ya" → buka form reset berbasis username yang sama
+    document.getElementById('btn-lupa-ya').addEventListener('click', () => {
+      modalLupa.style.display = 'none';
+      document.getElementById('r_username').value = username.value.trim();
+      document.getElementById('err-reset').innerHTML = '';
+      modalReset.style.display = 'flex';
+    });
+    document.getElementById('btn-reset-batal').addEventListener('click', () => {
+      modalReset.style.display = 'none';
+      kunciForm(false);
+      btnSubmit.textContent = 'Masuk →';
+    });
+    document.getElementById('form-reset').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (r_pw1.value !== r_pw2.value) {
+        document.getElementById('err-reset').innerHTML = `<div class="nb-alert nb-alert-red mb">⚠ Konfirmasi password tidak sama.</div>`;
+        return;
+      }
+      const btn = document.getElementById('btn-reset');
+      btn.disabled = true;
+      try {
+        await apiFetch('/auth/lupa-password', { method: 'POST', body: { username: r_username.value, email: r_email.value, password_baru: r_pw1.value } });
+        resetGagal(username.value);
+        modalReset.style.display = 'none';
+        kunciForm(false);
+        btnSubmit.textContent = 'Masuk →';
+        password.value = '';
+        document.getElementById('err').innerHTML = `<div class="nb-alert nb-alert-green mb">✓ Password berhasil diubah. Silakan masuk dengan password baru.</div>`;
+      } catch (err) {
+        document.getElementById('err-reset').innerHTML = `<div class="nb-alert nb-alert-red mb">⚠ ${esc(err.message)}</div>`;
+      } finally { btn.disabled = false; }
     });
   </script>
 </body>

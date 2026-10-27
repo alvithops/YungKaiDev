@@ -31,40 +31,70 @@
     </header>
     <main class="content">
       <div class="nb-card mb">
-        <div class="nb-card-header blue">🧑‍🎓 SISWA AKTIF <span class="nb-badge dark" id="count-siswa">…</span></div>
-        <div class="nb-card-body" id="list-siswa"><div class="nb-hint">Memuat...</div></div>
+        <div class="nb-card-header blue">🧑‍🎓 SEMUA SISWA (TERDAFTAR) <span class="nb-badge dark" id="count-siswa">…</span> <span class="nb-badge green" id="count-online">🟢 …</span> <span class="nb-badge red" id="count-blokir">🔒 …</span></div>
+        <div class="nb-card-body">
+          <div class="row mb">
+            <button class="nb-btn nb-btn-sm" data-filter="semua">Semua</button>
+            <button class="nb-btn nb-btn-sm" data-filter="aktif">🟢 Aktif</button>
+            <button class="nb-btn nb-btn-sm nb-btn-danger" data-filter="blokir">🔒 Diblokir</button>
+          </div>
+          <div id="list-siswa"><div class="nb-hint">Memuat...</div></div>
+        </div>
       </div>
+      <div class="nb-card mb"><div class="nb-card-header yellow">📩 PERMINTAAN AKSES</div><div class="nb-card-body" id="list-minta"><div class="nb-hint">Memuat...</div></div></div>
       <div class="grid-2">
-        <div class="nb-card"><div class="nb-card-header yellow">📩 PERMINTAAN AKSES</div><div class="nb-card-body" id="list-minta"><div class="nb-hint">Memuat...</div></div></div>
-        <div class="nb-card"><div class="nb-card-header pink">⛔ DIBLOKIR</div><div class="nb-card-body" id="list-banned"><div class="nb-hint">Memuat...</div></div></div>
+        <div class="nb-card"><div class="nb-card-header red">🔒 AKUN DIBLOKIR (GLOBAL)</div><div class="nb-card-body" id="list-blokir-akun"><div class="nb-hint">Memuat...</div></div></div>
+        <div class="nb-card"><div class="nb-card-header pink">⛔ DIBLOKIR PER KELAS</div><div class="nb-card-body" id="list-banned"><div class="nb-hint">Memuat...</div></div></div>
       </div>
-      <div class="nb-card mt"><div class="nb-card-header dark">🚫 BLOKIR PERMANENT (akun terhapus total)</div><div class="nb-card-body" id="list-perma"><div class="nb-hint">Memuat...</div></div></div>
+      <div class="nb-card mt"><div class="nb-card-header dark"><span>🚫 BLOKIR PERMANENT (akun terhapus total)</span><button class="nb-btn nb-btn-sm" id="btn-bersih-perma">🧹 Bersihkan Riwayat</button></div><div class="nb-card-body" id="list-perma"><div class="nb-hint">Memuat...</div></div></div>
     </main>
   </div>
 </div>
+  <!-- Modal detail monitoring siswa -->
+  <div id="modal-detail" style="display:none;position:fixed;inset:0;z-index:99;background:rgba(20,20,20,.5);align-items:center;justify-content:center;padding:16px">
+    <div class="nb-card" style="max-width:720px;width:100%;max-height:88vh;display:flex;flex-direction:column">
+      <div class="nb-card-header blue"><span id="detail-judul">DETAIL SISWA</span><button class="nb-btn nb-btn-sm" id="detail-tutup">✕ Tutup</button></div>
+      <div class="nb-card-body" id="detail-isi" style="overflow:auto"><div class="nb-hint">Memuat...</div></div>
+    </div>
+  </div>
 <script src="../js/config.js"></script>
 <script src="../js/realtime.js"></script>
 <script src="../js/api.js"></script>
 <script src="../js/auth.js"></script>
-<script src="../js/layout.js"></script>
-<script>
+  <script src="../js/layout.js"></script>
+  <script>
   (async () => {
     await requireAuth();
+    let cachePantau = null;
+    let cacheKelas = [];
+    let filterSiswa = 'semua';
+    const cacheOnlineServer = {}; // id -> 0/1 dari server (last_seen)
+    function refreshTitikHadir() {
+      document.querySelectorAll('[data-hadir-dot]').forEach((el) => {
+        const id = el.dataset.hadirDot;
+        const live = window.__hadirMap && window.__hadirMap[id];
+        if (el.dataset.diblokir === '1') { el.textContent = '🔒'; el.title = 'Akun diblokir oleh mentor'; return; }
+        el.textContent = live ? '🟢 live' : (cacheOnlineServer[id] ? '🟢' : '⚪');
+        el.title = live ? 'Tab aktif sekarang (real-time)' : (cacheOnlineServer[id] ? 'Online < 5 menit' : 'Offline / belum aktif');
+      });
+    }
+    window.addEventListener('pkl:hadir', refreshTitikHadir);
     async function muat() {
       try {
-        const { kelas, siswa, banned, pending } = await apiFetch('/pantau');
-        document.getElementById('count-siswa').textContent = siswa.length + ' aktif';
-        const box = document.getElementById('list-siswa');
-        box.innerHTML = siswa.length ? '' : `<div class="nb-alert nb-alert-yellow">Belum ada siswa di kelasmu.</div>`;
-        for (const s of siswa) {
-          // anggota per kelas (untuk tombol pantau + ban yang tepat sasaran)
-          const el = document.createElement('div');
-          el.className = 'nb-card mb';
-          el.innerHTML = `<div class="nb-card-body"><div class="row"><b>${esc(s.nama)}</b><span class="nb-hint">${esc(s.email)}</span><span style="flex:1"></span><a class="nb-btn nb-btn-sm nb-btn-primary" href="pantau-siswa.html?id=${s.id}">👁 Masuk sebagai (lihat saja)</a></div>
-            <div class="row mt" id="anggota-${s.id}"><div class="nb-hint">Memuat kelas...</div></div></div>`;
-          box.appendChild(el);
-          muatAnggota(s.id, kelas);
-        }
+        const data = await apiFetch('/pantau');
+        cachePantau = data;
+        cacheKelas = data.kelas || [];
+        const { siswa, banned, pending } = data;
+        tampilkanSiswa(siswa);
+        const diblokir = siswa.filter((s) => s.diblokir);
+        document.getElementById('list-blokir-akun').innerHTML = diblokir.length ? diblokir.map((s) => `
+          <div class="nb-card mb"><div class="nb-card-body">
+            <div class="row"><b>${esc(s.nama)}</b><span class="nb-hint">${esc(s.email)}</span><span style="flex:1"></span>
+            <button class="nb-btn nb-btn-sm nb-btn-green" data-unblok-akun="${s.id}">🔓 Buka Blokir</button>
+            <button class="nb-btn nb-btn-sm nb-btn-danger" data-perma="${s.id}" data-nama="${esc(s.nama)}">⛔ Permanent</button></div>
+            <div class="nb-hint mt">🔒 Alasan: ${esc(s.blokir_alasan || '—')}${s.diblokir_pada ? ` · sejak ${new Date(s.diblokir_pada).toLocaleString('id-ID')}` : ''}</div>
+          </div></div>`).join('')
+          : `<div class="nb-hint">Tidak ada akun yang diblokir.</div>`;
         document.getElementById('list-minta').innerHTML = pending.length ? pending.map((r) => `
           <div class="row mb"><b>${esc(r.nama)}</b><span class="nb-badge blue">${esc(r.nama_kelas)}</span><span style="flex:1"></span>
           <button class="nb-btn nb-btn-sm nb-btn-green" data-setuju="${r.id}">Terima</button>
@@ -85,24 +115,167 @@
         } catch {}
       } catch (e) { toast(e.message, 'red'); }
     }
+    // Render SEMUA akun siswa terdaftar + status aktif/blokir + tombol blokir global
+    function tampilkanSiswa(siswa) {
+      const total = siswa.length;
+      const online = siswa.reduce((a, s) => a + (s.online ? 1 : 0), 0);
+      const blokir = siswa.reduce((a, s) => a + (s.diblokir ? 1 : 0), 0);
+      document.getElementById('count-siswa').textContent = total;
+      document.getElementById('count-online').textContent = '🟢 ' + online;
+      document.getElementById('count-blokir').textContent = '🔒 ' + blokir;
+      const list = filterSiswa === 'aktif' ? siswa.filter((s) => s.online) : filterSiswa === 'blokir' ? siswa.filter((s) => s.diblokir) : siswa;
+      const empty = filterSiswa === 'aktif' ? 'Tidak ada siswa yang sedang aktif/online.'
+        : filterSiswa === 'blokir' ? 'Tidak ada akun yang diblokir.' : 'Belum ada siswa terdaftar.';
+      const box = document.getElementById('list-siswa');
+      box.innerHTML = '';
+      if (!list.length) { box.innerHTML = `<div class="nb-alert nb-alert-yellow">${empty}</div>`; return; }
+      for (const s of list) {
+        cacheOnlineServer[s.id] = s.online ? 1 : 0;
+        const el = document.createElement('div');
+        el.className = 'nb-card mb';
+        if (s.diblokir) el.style.border = '2px solid var(--red)';
+        el.innerHTML = `<div class="nb-card-body">
+            <div class="row">
+              <span data-hadir-dot="${s.id}" data-diblokir="${s.diblokir ? 1 : 0}" title="Status">⚪</span>
+              <b>${esc(s.nama)}</b>${s.diblokir ? ` <span class="nb-badge red">🔒 DIBLOKIR</span>` : s.online ? `<span class="nb-badge green">🟢 aktif</span>` : `<span class="nb-badge yellow">○ terdaftar</span>`}
+              <span class="nb-hint">${esc(s.email)}</span>
+              <span style="flex:1"></span>
+              <button class="nb-btn nb-btn-sm nb-btn-blue" data-detail="${s.id}">🔍 Detail</button>
+              ${s.diblokir
+                ? `<button class="nb-btn nb-btn-sm nb-btn-green" data-unblok-akun="${s.id}">🔓 Buka Blokir</button>`
+                : `<button class="nb-btn nb-btn-sm nb-btn-danger" data-blokir-akun="${s.id}" data-nama="${esc(s.nama)}">🚫 Blokir Akun</button>`}
+              <button class="nb-btn nb-btn-sm nb-btn-danger" data-perma="${s.id}" data-nama="${esc(s.nama)}">⛔ Permanent</button>
+            </div>
+            ${s.diblokir && s.blokir_alasan ? `<div class="nb-hint mt">🔒 Alasan: ${esc(s.blokir_alasan)}${s.diblokir_pada ? ' · sejak ' + new Date(s.diblokir_pada).toLocaleString('id-ID') : ''}</div>` : ''}
+            <div class="row mt">
+              <span class="nb-hint">Terdaftar: ${s.created_at ? new Date(s.created_at).toLocaleDateString('id-ID') : '—'} · Terakhir aktif: ${s.last_seen ? new Date(s.last_seen).toLocaleString('id-ID') : 'belum pernah'}</span>
+              ${(s.kelas || []).length ? s.kelas.map((k) => `<span class="nb-badge blue">${esc(k)}</span>`).join('') : `<span class="nb-hint">· belum masuk kelas mana pun</span>`}
+            </div>
+            <div class="row mt" id="anggota-${s.id}"><div class="nb-hint">Memuat kelas...</div></div>
+          </div>`;
+        box.appendChild(el);
+        muatAnggota(s.id, cacheKelas);
+      }
+      refreshTitikHadir();
+    }
+
     async function muatAnggota(siswaId, kelasList) {
       const box = document.getElementById('anggota-' + siswaId);
       const baris = [];
+      const wadah = [];
       for (const k of kelasList) {
         try {
           const anggota = await apiFetch(`/kelas/${k.id}/anggota`);
           if (anggota.some((a) => a.id === siswaId)) {
             baris.push(`<span class="nb-badge blue">${esc(k.nama_kelas)}</span>
               <a class="nb-btn nb-btn-sm" href="kelas-siswa.html?id=${k.id}">👁 Pantau</a>
+              <button class="nb-btn nb-btn-sm nb-btn-blue" data-progres="${siswaId}" data-kelas="${k.id}" data-namakelas="${esc(k.nama_kelas)}">📊 Progres</button>
               <button class="nb-btn nb-btn-sm nb-btn-danger" data-ban="${siswaId}" data-kelas="${k.id}" data-nama="${esc(anggota.find((a) => a.id === siswaId).nama)}">Kick/Ban</button>`);
+            wadah.push(`<div id="prog-${siswaId}-${k.id}" class="mt" style="flex-basis:100%"></div>`);
           }
         } catch {}
       }
-      box.innerHTML = baris.length ? baris.join(' ') : '<span class="nb-hint">tidak di kelas mana pun</span>';
+      box.innerHTML = (baris.length ? baris.join(' ') : '<span class="nb-hint">tidak di kelas mana pun</span>') + wadah.join('');
     }
-    document.addEventListener('click', async (e) => {
+    async function muatProgres(siswaId, kelasId, namaKelas, box) {
+      box.innerHTML = `<div class="nb-hint">Memuat progres...</div>`;
+      try {
+        const d = await apiFetch(`/pantau/siswa/${siswaId}?kelas=${kelasId}`);
+        box.innerHTML = `<div class="nb-card"><div class="nb-card-body">
+          <b>📊 Progres ${esc(namaKelas)} (live — terisi saat siswa beraktivitas)</b>
+          ${d.progres.map((r) => {
+            const ada = r.materi.length + r.tugas.length + r.kuis.length;
+            if (!ada) return '';
+            const mOk = r.materi.filter((m) => m.dibaca).length;
+            const tOk = r.tugas.filter((t) => t.status).length;
+            const kOk = r.kuis.filter((k) => k.skor !== null).length;
+            return `<div class="mb"><span class="nb-badge dark">P${r.p}</span>
+              ${r.materi.length ? `<div class="nb-hint">📖 Modul ${mOk}/${r.materi.length}: ${r.materi.map((m) => `${m.dibaca ? '✓' : '○'} ${esc(m.judul)}`).join(' · ')}</div>` : ''}
+              ${r.tugas.map((t) => `<div class="nb-hint">📥 ${esc(t.judul)}: ${t.status === 'dinilai' ? `✓ nilai ${t.nilai}` : t.status ? '● terkumpul' : '○ belum'}</div>`).join('')}
+              ${r.kuis.map((k) => `<div class="nb-hint">📝 ${esc(k.judul)}: ${k.skor !== null ? `skor ${k.skor}` : '○ belum'}</div>`).join('')}
+              <div class="nb-hint">Ringkasan: modul ${mOk}/${r.materi.length} · tugas ${tOk}/${r.tugas.length} · kuis ${kOk}/${r.kuis.length}</div></div>`;
+          }).join('') || '<div class="nb-hint">Kelas ini belum punya konten pertemuan.</div>'}
+        </div></div>`;
+      } catch (err) { box.innerHTML = `<div class="nb-alert nb-alert-red">⚠ ${esc(err.message)}</div>`; }
+    }
+    document.getElementById('detail-tutup').addEventListener('click', () => {
+      document.getElementById('modal-detail').style.display = 'none';
+    });
+    // Ringkasan akademik per siswa: tugas (file/jawaban) + nilai + kehadiran
+    async function tampilDetail(siswaId) {
+      const modal = document.getElementById('modal-detail');
+      const isi = document.getElementById('detail-isi');
+      modal.style.display = 'flex';
+      isi.innerHTML = `<div class="nb-hint">Memuat ringkasan...</div>`;
+      try {
+        const meta = (cachePantau?.siswa || []).find((x) => x.id === siswaId) || {};
+        const live = window.__hadirMap && window.__hadirMap[siswaId];
+        let html = `<div class="row mb"><b style="font-size:20px">${esc(meta.nama || 'Siswa')}</b>
+          <span>${live ? '<span class="nb-badge green">🟢 live: tab aktif</span>' : (meta.online ? '<span class="nb-badge green">🟢 online</span>' : '<span class="nb-badge yellow">○ offline</span>')}</span></div>
+          <div class="nb-hint mb">Terakhir terlihat (server): ${meta.last_seen ? new Date(meta.last_seen).toLocaleString('id-ID') : '—'}</div>`;
+        for (const k of (cachePantau?.kelas || [])) {
+          let d;
+          try { d = await apiFetch(`/pantau/siswa/${siswaId}?kelas=${k.id}`); }
+          catch { continue; }
+          const ada = d.progres.some((r) => r.materi.length + r.tugas.length + r.kuis.length);
+          if (!ada) continue;
+          html += `<div class="nb-card mb"><div class="nb-card-header dark">${esc(k.nama_kelas)}</div><div class="nb-card-body">`;
+          const rata = (arr) => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : null;
+          const nT = [], nK = [];
+          d.progres.forEach((r) => {
+            if (!r.materi.length && !r.tugas.length && !r.kuis.length) return;
+            html += `<div class="mb"><span class="nb-badge dark">P${r.p}</span> `;
+            html += r.tugas.length + r.kuis.length + r.materi.length ? '' : '<span class="nb-hint">kosong</span>';
+            html += `<div class="nb-hint">📖 Modul: ${r.materi.length ? r.materi.map((m) => `${m.dibaca ? '✓' : '○'} ${esc(m.judul)}`).join(' · ') : '—'}</div>`;
+            r.tugas.forEach((t) => {
+              if (t.nilai !== null && t.nilai !== undefined) nT.push(t.nilai);
+              html += `<div class="nb-hint">📥 ${esc(t.judul)}: ${t.status === 'dinilai' ? `✓ nilai ${t.nilai}${t.feedback ? ` (“${esc(t.feedback)}”)` : ''}` : t.status ? '● sudah kumpul, menunggu nilai' : '○ <b>belum dikerjakan</b>'}${
+                t.file_path ? ` <a href="${apiFile(t.file_path)}" target="_blank"><b>⬇ file</b></a>` : ''}${
+                t.bahasa ? ` <span class="mono">[${esc(t.bahasa)}]</span>` : ''}${
+                t.submitted_at ? ` <span class="mono">${new Date(t.submitted_at).toLocaleString('id-ID')}</span>` : ''}</div>`;
+            });
+            r.kuis.forEach((kq) => {
+              if (kq.skor !== null && kq.skor !== undefined) nK.push(kq.skor);
+              html += `<div class="nb-hint">📝 ${esc(kq.judul)}: ${kq.skor !== null && kq.skor !== undefined ? `skor ${kq.skor}` : '○ belum dikerjakan'}</div>`;
+            });
+            html += `</div>`;
+          });
+          const rT = rata(nT), rK = rata(nK);
+          html += `<div class="row"><span class="nb-badge blue">Rata tugas: ${rT ?? '—'}</span><span class="nb-badge pink">Rata kuis: ${rK ?? '—'}</span></div>`;
+          html += `</div></div>`;
+        }
+        document.getElementById('detail-judul').textContent = 'MONITORING: ' + (meta.nama || '').toUpperCase();
+        isi.innerHTML = html;
+      } catch (err) {
+        isi.innerHTML = `<div class="nb-alert nb-alert-red">⚠ ${esc(err.message)}</div>`;
+      }
+    }
+      document.addEventListener('click', async (e) => {
       const q = (s) => e.target.closest(s);
       let b;
+      if ((b = q('[data-filter]'))) { filterSiswa = b.dataset.filter; muat(); return; }
+      if ((b = q('[data-detail]'))) { tampilDetail(Number(b.dataset.detail)); return; }
+      if ((b = q('[data-blokir-akun]'))) {
+        const alasan = window.prompt(`Blokir akun ${b.dataset.nama}? Tulis alasan (opsional):`, 'Diblokir oleh mentor');
+        if (alasan === null) return;
+        try {
+          const r = await apiFetch(`/users/${b.dataset.blokirAkun}/blokir`, { method: 'PUT', body: { alasan } });
+          toast(r.message, 'green'); muat();
+        } catch (err) { toast(err.message, 'red'); }
+        return;
+      }
+      if ((b = q('[data-unblok-akun]'))) {
+        if (!confirm('Buka blokir akun ini?')) return;
+        try {
+          const r = await apiFetch(`/users/${b.dataset.unblokAkun}/blokir`, { method: 'DELETE' });
+          toast(r.message, 'green'); muat();
+        } catch (err) { toast(err.message, 'red'); }
+        return;
+      }
+      if ((b = q('[data-progres]'))) {
+        muatProgres(b.dataset.progres, b.dataset.kelas, b.dataset.namakelas, document.getElementById(`prog-${b.dataset.progres}-${b.dataset.kelas}`));
+        return;
+      }
       if ((b = q('[data-ban]'))) {
         // langsung di-ban tanpa alasan
         try { await apiFetch(`/kelas/${b.dataset.kelas}/ban`, { method: 'POST', body: { siswa_id: b.dataset.ban } }); toast('Siswa di-ban langsung', 'green'); muat(); }
@@ -128,6 +301,13 @@
         try { await apiFetch(`/blokir-permanen/${b.dataset.bukaPerma}`, { method: 'DELETE' }); toast('Blokir permanent dibuka', 'green'); muat(); }
         catch (err) { toast(err.message, 'red'); }
       }
+    });
+    document.getElementById('btn-bersih-perma').addEventListener('click', async () => {
+      if (!confirm('Bersihkan SELURUH riwayat blokir permanent? Email-email itu bisa dipakai daftar lagi.')) return;
+      try {
+        const r = await apiFetch('/blokir-permanen', { method: 'DELETE' });
+        toast(`🧹 ${r.dibersihkan} riwayat dibersihkan`, 'green'); muat();
+      } catch (err) { toast(err.message, 'red'); }
     });
     dengarRefresh(muat);
     muat();

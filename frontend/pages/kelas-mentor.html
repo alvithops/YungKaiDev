@@ -48,6 +48,7 @@
           <div class="nb-card mb" id="materi">
             <div class="nb-card-header yellow"><span>📖 MODUL / MATERI</span><span class="nb-badge dark" id="count-materi">…</span></div>
             <div class="nb-card-body">
+              <input id="cari-materi" class="nb-input mb" placeholder="🔍 Cari modul..." aria-label="Cari modul" />
               <div id="list-materi"><div class="nb-hint">Memuat...</div></div>
               <form id="form-materi" class="mt">
                 <b>+ Tambah Modul (teks / file)</b>
@@ -72,6 +73,7 @@
                 <input id="ft_deadline" type="datetime-local" class="nb-input mt" aria-label="Deadline" />
                 <button class="nb-btn nb-btn-sm nb-btn-primary mt" type="submit">Buat Tugas</button>
               </form>
+              <input id="cari-tugas" class="nb-input mb" placeholder="🔍 Cari tugas..." aria-label="Cari tugas" />
               <div id="list-tugas"><div class="nb-hint">Memuat...</div></div>
             </div>
           </div>
@@ -81,14 +83,9 @@
           <div class="nb-card mb" id="kuis">
             <div class="nb-card-header blue">📝 KUIS + SOAL</div>
             <div class="nb-card-body">
-              <form id="form-kuis" class="mb">
-                <b>+ Buat Kuis</b>
-                <input id="fk_judul" class="nb-input mt" required placeholder="Judul kuis" />
-                <select id="fk_pert" class="nb-select mt" aria-label="Pertemuan"></select>
-                <input id="fk_deskripsi" class="nb-input mt" placeholder="Deskripsi" />
-                <div class="row mt"><input id="fk_durasi" type="number" class="nb-input" value="30" aria-label="Durasi menit" /><input id="fk_deadline" type="datetime-local" class="nb-input" aria-label="Deadline kuis" /></div>
-                <button class="nb-btn nb-btn-sm nb-btn-primary mt" type="submit">Buat Kuis</button>
-              </form>
+              <a class="nb-btn nb-btn-primary nb-btn-block" id="btn-buat-kuis" href="#">+ Buat Kuis Baru (halaman khusus) →</a>
+              <p class="nb-hint">Atur judul, durasi, pertemuan + susun soal PG/esai + nilai per soal di halaman khusus.</p>
+              <input id="cari-kuis" class="nb-input mb" placeholder="🔍 Cari kuis..." aria-label="Cari kuis" />
               <div id="list-kuis"><div class="nb-hint">Memuat...</div></div>
             </div>
           </div>

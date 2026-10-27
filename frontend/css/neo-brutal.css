@@ -112,6 +112,7 @@ a { color: inherit; }
 .nb-card-header.blue { background: var(--blue); }
 .nb-card-header.pink { background: var(--pink); }
 .nb-card-header.green { background: var(--green); }
+.nb-card-header.red { background: var(--red); color: #fff; }
 .nb-card-header.dark { background: var(--ink); color: #fff; }
 .nb-card-body { padding: 16px; }
 .nb-card-hover { transition: transform .12s ease, box-shadow .12s ease; }

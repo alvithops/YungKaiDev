@@ -28,6 +28,7 @@
     <header class="topbar">
       <button id="btnHamburger" class="nb-btn nb-btn-sm hamburger" aria-expanded="false" aria-label="Buka menu">☰</button>
       <h1 class="page-title">Transkrip Nilai</h1>
+      <span class="nb-badge green hide-mobile">🔴 LIVE — terisi otomatis saat siswa mengumpulkan</span>
       <span style="flex:1"></span>
       <select id="pilih-kelas" class="nb-select" style="max-width:220px" aria-label="Pilih kelas"></select>
     </header>
@@ -60,11 +61,11 @@
 
     async function muatRekap(kelasId) {
       try {
-        const { kelas, tugas, siswa } = await apiFetch(`/kelas/${kelasId}/rekap`);
+        const { kelas, tugas, kuis, siswa } = await apiFetch(`/kelas/${kelasId}/rekap`);
         document.getElementById('judul-rekap').textContent = 'REKAP — ' + kelas.nama_kelas.toUpperCase();
-        document.getElementById('head-rekap').innerHTML = `<tr><th>Siswa</th>${tugas.map((t) => `<th>${esc(t.judul)}</th>`).join('')}<th>Rata²</th></tr>`;
+        document.getElementById('head-rekap').innerHTML = `<tr><th>Siswa</th>${tugas.map((t) => `<th>📥 ${esc(t.judul)}</th>`).join('')}${(kuis || []).map((k) => `<th>📝 ${esc(k.judul)}</th>`).join('')}<th>Rata² Total</th></tr>`;
         const tb = document.getElementById('body-rekap');
-        tb.innerHTML = siswa.length ? '' : `<tr><td colspan="${tugas.length + 2}">Belum ada siswa.</td></tr>`;
+        tb.innerHTML = siswa.length ? '' : `<tr><td colspan="${tugas.length + (kuis || []).length + 2}">Belum ada siswa.</td></tr>`;
         siswa.forEach((s) => {
           const tr = document.createElement('tr');
           const sel2 = tugas.map((t) => {
@@ -73,7 +74,7 @@
             if (c.status === 'dinilai') return `<td><span class="nb-badge ${warna(c.nilai)}">${c.nilai}</span></td>`;
             return `<td><div class="row"><input id="n-${c.p_id}" type="number" min="0" max="100" class="nb-input" style="width:76px" aria-label="Nilai" /><button class="nb-btn nb-btn-sm nb-btn-primary" data-simpan="${c.p_id}">✓</button></div></td>`;
           }).join('');
-          tr.innerHTML = `<td><b>${esc(s.nama)}</b><br><span class="mono nb-hint">@${esc(s.username || '-')}</span></td>${sel2}<td>${s.rata2 !== null ? `<span class="nb-badge ${warna(s.rata2)}">${s.rata2}</span>` : '—'}</td>`;
+          tr.innerHTML = `<td><b>${esc(s.nama)}</b><br><span class="mono nb-hint">@${esc(s.username || '-')}</span></td>${sel2}${(kuis || []).map((k) => `<td>${s.nilai_kuis && s.nilai_kuis[k.id] !== null && s.nilai_kuis[k.id] !== undefined ? `<span class="nb-badge ${warna(s.nilai_kuis[k.id])}">${s.nilai_kuis[k.id]}</span>` : '—'}</td>`).join('')}<td>${s.rata_total !== null && s.rata_total !== undefined ? `<span class="nb-badge ${warna(s.rata_total)}">${s.rata_total}</span><br><span class="nb-hint">T:${s.rata2 ?? '—'} K:${s.rata_kuis ?? '—'}</span>` : '—'}</td>`;
           tb.appendChild(tr);
         });
         document.getElementById('bulanan').innerHTML = siswa.length ? siswa.map((s) => {
@@ -90,6 +91,7 @@
       catch (err) { toast(err.message, 'red'); }
     });
     dengarRefresh(() => sel.value && muatRekap(sel.value));
+    setInterval(() => { if (sel.value) muatRekap(sel.value); }, 8000); // nilai siswa masuk otomatis
   })();
 </script>
 </body>

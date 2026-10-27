@@ -61,8 +61,11 @@ diskusi.delete('/kelas/:id/diskusi', verifyToken, requireRole('mentor'), (req, r
   const { err, code, kelas } = cekKelas(req.params.id, req.user);
   if (err) return fail(res, err, code);
   if (kelas.mentor_id !== req.user.id) return fail(res, 'Bukan kelas milikmu', 403);
-  const info = db.prepare('DELETE FROM diskusi WHERE kelas_id = ?').run(kelas.id);
-  return ok(res, { dihapus: info.changes }, `Seluruh chat dihapus (${info.changes} pesan)`);
+  const sebelum = db.prepare('SELECT COUNT(*) c FROM diskusi WHERE kelas_id = ?').get(kelas.id).c;
+  db.prepare('DELETE FROM diskusi WHERE kelas_id = ?').run(kelas.id);
+  const sesudah = db.prepare('SELECT COUNT(*) c FROM diskusi WHERE kelas_id = ?').get(kelas.id).c;
+  const dihapus = sebelum - sesudah;
+  return ok(res, { dihapus }, `Seluruh chat dihapus (${dihapus} pesan)`);
 });
 diskusi.delete('/diskusi/:diskusiId', verifyToken, (req, res) => {
   const d = db.prepare('SELECT * FROM diskusi WHERE id = ?').get(req.params.diskusiId);

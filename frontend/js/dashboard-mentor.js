@@ -102,6 +102,45 @@
     } catch (err) { toast(err.message, 'red'); }
   });
 
+  // Kelola Mentor (OTORISASI): hanya tampil & berfungsi untuk MENTOR UTAMA.
+  const boxMentor = document.getElementById('kelola-mentor-box');
+  if (user.is_utama) {
+    boxMentor.style.display = '';
+
+    async function muatMentor() {
+      try {
+        const list = await apiFetch('/auth/mentor');
+        document.getElementById('list-mentor').innerHTML = list.length ? list.map((m) => `
+          <div class="row mb">
+            <div>
+              <b>${esc(m.nama)}</b> ${m.is_utama ? `<span class="nb-badge dark">UTAMA</span>` : ''}
+              <br><span class="nb-hint">login: ${esc(m.email)}${m.username ? ' · @' + esc(m.username) : ''}</span>
+            </div>
+            <span style="flex:1"></span>
+            <span class="nb-hint">${new Date(m.created_at).toLocaleDateString('id-ID')}</span>
+          </div>`).join('')
+          : `<div class="nb-hint">Belum ada mentor.</div>`;
+      } catch (e) { document.getElementById('list-mentor').innerHTML = `<div class="nb-hint">Gagal memuat daftar mentor.</div>`; }
+    }
+    muatMentor();
+
+    document.getElementById('form-mentor').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const nama = dm_nama.value.trim();
+      const password = dm_password.value;
+      if (!nama || password.length < 6) return toast('Nama wajib diisi & password minimal 6 karakter', 'red');
+      try {
+        const m = await apiFetch('/auth/daftar-mentor', { method: 'POST', body: { nama, password } });
+        const hasil = document.getElementById('dm-hasil');
+        hasil.style.display = '';
+        hasil.innerHTML = `✅ <b>${esc(m.nama)}</b> terdaftar dan diberi izin akses halaman mentor.<br>Login → <b>${esc(m.email)}</b> · password <b>${esc(m.password)}</b>`;
+        dm_nama.value = ''; dm_password.value = '';
+        muatMentor();
+        toast('Mentor terdaftar ✓', 'green');
+      } catch (err) { toast(err.message, 'red'); }
+    });
+  }
+
   // Feed + siswa aktif: cerminan live data halaman siswa
   async function muatAktivitas() {
     try {

@@ -73,6 +73,28 @@
         </div>
       </div>
 
+      <div class="grid-2 mt" id="kelola-mentor-box" style="display:none">
+        <div class="nb-card">
+          <div class="nb-card-header dark">👥 KELOLA MENTOR — OTORISASI AKSES</div>
+          <div class="nb-card-body">
+            <div class="nb-alert nb-alert-blue mb">Anda adalah <b>MENTOR UTAMA</b>. Mendaftarkan rekan mentor di sini = memberi izin akses ke seluruh halaman mentor.</div>
+            <form id="form-mentor">
+              <label class="nb-label" for="dm_nama">Nama mentor</label>
+              <input id="dm_nama" class="nb-input" required placeholder="cth: Budi Santoso" />
+              <label class="nb-label mt" for="dm_password">Password</label>
+              <input id="dm_password" class="nb-input" type="password" required minlength="6" placeholder="Minimal 6 karakter" />
+              <button class="nb-btn nb-btn-primary nb-btn-block mt" type="submit">Daftarkan Mentor + Beri Izin →</button>
+            </form>
+            <div class="nb-alert nb-alert-green mt" id="dm-hasil" style="display:none"></div>
+            <div class="nb-hint mt">Username & email login mentor dibuat otomatis dari nama. Bagikan kredensialnya ke mentor bersangkutan.</div>
+          </div>
+        </div>
+        <div class="nb-card">
+          <div class="nb-card-header yellow">DAFTAR MENTOR</div>
+          <div class="nb-card-body" id="list-mentor"><div class="nb-hint">Memuat...</div></div>
+        </div>
+      </div>
+
       <div class="nb-card mt">
         <div class="nb-card-header green"><span>🔴 AKTIVITAS SISWA TERKINI (LIVE)</span><span class="nb-badge dark">auto-refresh 10 dtk</span></div>
         <div class="nb-card-body"><div class="grid-2">

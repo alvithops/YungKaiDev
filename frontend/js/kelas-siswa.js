@@ -53,28 +53,34 @@
     return `<div class="nb-card mb"><div class="nb-card-body"><b>📖 ${esc(m.judul)}</b>
       ${m.deskripsi ? `<p class="nb-hint">${esc(m.deskripsi)}</p>` : ''}
       <div class="row mt">
-      ${m.link_video ? `<a class="nb-btn nb-btn-sm nb-btn-pink" href="${esc(m.link_video)}" target="_blank">▶ Tonton</a>` : ''}
-      ${m.file_path ? `<a class="nb-btn nb-btn-sm nb-btn-blue" href="${FILE_BASE_URL + m.file_path}" target="_blank">⬇ Unduh Materi</a>` : ''}
+      ${m.link_video ? `<a class="nb-btn nb-btn-sm nb-btn-pink" href="${esc(m.link_video)}" target="_blank" data-baca-materi="${m.id}">▶ Tonton</a>` : ''}
+      ${m.file_path ? `<a class="nb-btn nb-btn-sm nb-btn-blue" href="${apiFile(m.file_path)}" target="_blank" data-baca-materi="${m.id}">⬇ Unduh Materi</a>` : ''}
       </div></div></div>`;
   }
 
+  // Draf pengumpulan per tugas: file & teks tersimpan di memori agar tidak hilang
+  // saat daftar me-refresh otomatis (bug: nama file sempat muncul lalu hilang).
+  const drafTugas = {}; // tugasId -> {mode:'file'|'text', file:File|null, namaFile, teks}
   function htmlTugas(t) {
     let aksi = '';
     if (bolehAksi && (!t.saya || t.saya.status !== 'dinilai')) {
+      const d = drafTugas[t.id] || {};
+      const mode = d.mode || 'file';
       aksi = `
-        <div class="row mt">
-          <input type="file" id="file-${t.id}" class="nb-input" style="flex:1" aria-label="Pilih file tugas" />
-          <button class="nb-btn nb-btn-sm nb-btn-blue" data-kumpul-file="${t.id}">📎 Kumpul File</button>
+        <div class="row mt" role="radiogroup" aria-label="Mode pengumpulan">
+          <label class="row" style="font-weight:700"><input type="radio" name="mode-${t.id}" value="file" data-mode-radio="${t.id}"${mode === 'file' ? ' checked' : ''} /> 📎 Upload File</label>
+          <label class="row" style="font-weight:700"><input type="radio" name="mode-${t.id}" value="text" data-mode-radio="${t.id}"${mode === 'text' ? ' checked' : ''} /> 📝 Text</label>
         </div>
-        <div class="row mt">
-          <select id="lang-${t.id}" class="nb-select" style="max-width:130px" aria-label="Bahasa">
-            <option value="py">Python</option><option value="js">JavaScript</option><option value="php">PHP</option><option value="java">Java</option><option value="html">HTML</option><option value="txt">Teks</option>
-          </select>
-          <button class="nb-btn nb-btn-sm nb-btn-dark" data-kumpul-kode-toggle="${t.id}">&lt;/&gt; Tulis Kode</button>
+        <div id="mode-file-${t.id}" style="${mode === 'file' ? '' : 'display:none'}">
+          <div class="row mt">
+            <input type="file" id="file-${t.id}" data-file-input="${t.id}" class="nb-input" style="flex:1" aria-label="Pilih file tugas (PDF, PPT, Excel, Word, dll)" />
+            <button class="nb-btn nb-btn-sm nb-btn-blue" data-kumpul-file="${t.id}">Kumpul File</button>
+          </div>
+          <div id="chip-${t.id}" class="nb-hint mt">${d.namaFile ? `📎 ${esc(d.namaFile)} ✓ siap dikirim (tersimpan, aman refresh)` : ''}</div>
         </div>
-        <div id="kodebox-${t.id}" style="display:none" class="mt">
-          <textarea id="kode-${t.id}" class="nb-textarea mono" rows="6" placeholder="Tempel kode program di sini..."></textarea>
-          <button class="nb-btn nb-btn-sm nb-btn-primary mt" data-kumpul-kode="${t.id}">Kirim Kode →</button>
+        <div id="mode-text-${t.id}" style="${mode === 'text' ? '' : 'display:none'}" class="mt">
+          <textarea id="kode-${t.id}" data-teks-input="${t.id}" class="nb-textarea" rows="6" placeholder="Tulis jawaban esai / catatan langsung di sini...">${esc(d.teks || '')}</textarea>
+          <button class="nb-btn nb-btn-sm nb-btn-primary mt" data-kumpul-kode="${t.id}">Kirim Teks →</button>
         </div>
         ${t.saya?.feedback ? `<div class="nb-alert nb-alert-blue mt">🗨 Feedback mentor: ${esc(t.saya.feedback)}</div>` : ''}`;
     } else if (t.saya?.status === 'dinilai') {
@@ -123,20 +129,73 @@
       }
       box.appendChild(el);
     }
+    // bersihkan draf tugas yang sudah dihapus mentor (anti yatim di memori)
+    const idsAktif = new Set(cacheT.map((t) => t.id));
+    for (const k of Object.keys(drafTugas)) if (!idsAktif.has(Number(k))) delete drafTugas[k];
   }
 
+  let timerKuis = null;
+  let kuisSedangDikerjakan = false; // true saat soal terbuka → refresh otomatis JEDA agar tidak menutup kuis
   async function mulaiKuis(id, box) {
     try {
+      const mulai = await apiFetch(`/kuis/${id}/mulai`, { method: 'POST' });
       const soal = await apiFetch(`/kuis/${id}/soal`);
       if (!soal.length) return toast('Kuis belum punya soal', 'red');
-      box.innerHTML = soal.map((s, i) => `
-        <div class="mb"><b>${i + 1}. ${esc(s.pertanyaan)}</b>
-        ${['A', 'B', 'C', 'D'].map((o) => `<label class="row" style="font-weight:400"><input type="radio" name="j-${s.id}" value="${o}" data-jawab="${id}" /> <b>${o}.</b> ${esc(s['opsi_' + o.toLowerCase()])}</label>`).join('')}</div>`).join('')
+      const sisa = Math.max(0, Math.round((mulai.durasi_menit || 30) * 60 - (Date.now() - new Date(String(mulai.mulai_pada).replace(' ', 'T') + 'Z').getTime()) / 1000));
+      box.innerHTML = `<div class="nb-alert nb-alert-yellow mb">⏱ Sisa waktu: <b id="timer-${id}">…</b> (ditegakkan server)</div>` + soal.map((s, i) => `
+        <div class="mb"><b>${i + 1}. ${esc(s.pertanyaan)}</b> ${(s.tipe || 'pg') === 'essay' ? `<span class="nb-badge pink">ESAI</span>` : ''}
+        ${(s.tipe || 'pg') === 'essay'
+          ? `<textarea name="j-${s.id}" data-jawab="${id}" class="nb-textarea mono" rows="4" placeholder="Tulis jawaban esaimu..."></textarea>`
+          : ['A', 'B', 'C', 'D'].map((o) => `<label class="row" style="font-weight:400"><input type="radio" name="j-${s.id}" value="${o}" data-jawab="${id}" /> <b>${o}.</b> ${esc(s['opsi_' + o.toLowerCase()])}</label>`).join('')}</div>`).join('')
         + `<button class="nb-btn nb-btn-primary" data-kirim-kuis="${id}">Kumpulkan Jawaban →</button>`;
+      clearInterval(timerKuis);
+      let t = sisa;
+      const tick = () => {
+        const el = document.getElementById('timer-' + id);
+        if (!el) { clearInterval(timerKuis); return; }
+        el.textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+        if (t <= 0) {
+          clearInterval(timerKuis);
+          toast('Waktu habis, jawaban dikumpulkan otomatis', 'yellow');
+          el.closest('.nb-card-body')?.querySelector('[data-kirim-kuis]')?.click();
+        }
+        t--;
+      };
+      tick();
+      timerKuis = setInterval(tick, 1000);
+      kuisSedangDikerjakan = true; // kunci tampilan sampai dikumpulkan/habis
     } catch (err) { toast(err.message, 'red'); }
   }
 
+  // Draf anti-hilang: mode, file terpilih, dan ketikan tersimpan di memori
+  document.addEventListener('change', (e) => {
+    const r = e.target.closest('[data-mode-radio]');
+    if (r) {
+      const id = r.dataset.modeRadio;
+      drafTugas[id] = { ...(drafTugas[id] || {}), mode: r.value };
+      const mf = document.getElementById('mode-file-' + id);
+      const mt = document.getElementById('mode-text-' + id);
+      if (mf) mf.style.display = r.value === 'file' ? '' : 'none';
+      if (mt) mt.style.display = r.value === 'text' ? '' : 'none';
+      return;
+    }
+    const f = e.target.closest('[data-file-input]');
+    if (f) {
+      const id = f.dataset.fileInput;
+      const file = (f.files && f.files[0]) || null;
+      drafTugas[id] = { ...(drafTugas[id] || {}), file, namaFile: file ? file.name : '' };
+      const chip = document.getElementById('chip-' + id);
+      if (chip) chip.innerHTML = file ? `📎 ${esc(file.name)} ✓ siap dikirim (tersimpan, aman refresh)` : '';
+    }
+  });
+  document.addEventListener('input', (e) => {
+    const t = e.target.closest('[data-teks-input]');
+    if (t) drafTugas[t.dataset.teksInput] = { ...(drafTugas[t.dataset.teksInput] || {}), teks: t.value };
+  });
+
   document.addEventListener('click', async (e) => {
+    const bc = e.target.closest('[data-baca-materi]');
+    if (bc && bolehAksi) apiFetch(`/materi/${bc.dataset.bacaMateri}/baca`, { method: 'POST' }).catch(() => {}); // jejak dibaca, diam-diam
     const mk = e.target.closest('[data-masuk-kelas]');
     if (mk) {
       try { await apiFetch(`/kelas/${mk.dataset.masukKelas}/masuk`, { method: 'POST' }); toast('Masuk kembali ✓', 'green'); location.reload(); }
@@ -145,36 +204,38 @@
     }
     const q = (s) => e.target.closest(s);
     let b;
-    if ((b = q('[data-kumpul-kode-toggle]'))) {
-      const bx = document.getElementById('kodebox-' + b.dataset.kumpulKodeToggle);
-      bx.style.display = bx.style.display === 'none' ? 'block' : 'none';
-    }
     if ((b = q('[data-kumpul-file]'))) {
       const id = b.dataset.kumpulFile;
-      const f = document.getElementById('file-' + id).files[0];
-      if (!f) return toast('Pilih file dulu', 'red');
+      const draf = drafTugas[id] || {};
+      const f = draf.file || (document.getElementById('file-' + id).files || [])[0];
+      if (!f) return toast('Pilih file dulu (PDF, PPT, Excel, Word, dll)', 'red');
       const form = new FormData(); form.append('file', f);
       b.disabled = true;
-      try { await apiFetch(`/tugas/${id}/kumpul`, { method: 'POST', form }); toast('File terkumpul ✓', 'green'); muatSemua(); }
+      try { await apiFetch(`/tugas/${id}/kumpul`, { method: 'POST', form }); delete drafTugas[id]; toast('File terkumpul ✓', 'green'); muatSemua(); }
       catch (err) { toast(err.message, 'red'); } finally { b.disabled = false; }
     }
     if ((b = q('[data-kumpul-kode]'))) {
       const id = b.dataset.kumpulKode;
-      const kode = document.getElementById('kode-' + id).value;
-      const bahasa = document.getElementById('lang-' + id).value;
-      if (!kode.trim()) return toast('Kode masih kosong', 'red');
+      const draf = drafTugas[id] || {};
+      const teks = (draf.teks !== undefined ? draf.teks : document.getElementById('kode-' + id).value) || '';
+      if (!teks.trim()) return toast('Tulis jawaban teks dulu', 'red');
       b.disabled = true;
-      try { await apiFetch(`/tugas/${id}/kumpul`, { method: 'POST', body: { tipe: 'code', bahasa, kode_program: kode } }); toast('Kode terkumpul ✓', 'green'); muatSemua(); }
+      try { await apiFetch(`/tugas/${id}/kumpul`, { method: 'POST', body: { tipe: 'code', bahasa: 'txt', kode_program: teks } }); delete drafTugas[id]; toast('Teks terkumpul ✓', 'green'); muatSemua(); }
       catch (err) { toast(err.message, 'red'); } finally { b.disabled = false; }
     }
     if ((b = q('[data-mulai-kuis]'))) mulaiKuis(b.dataset.mulaiKuis, b.closest('.nb-card').querySelector('.kuis-box'));
     if ((b = q('[data-kirim-kuis]'))) {
       const id = b.dataset.kirimKuis;
       const jawaban = {};
-      document.querySelectorAll(`[data-jawab="${id}"]:checked`).forEach((r) => { jawaban[r.name.split('-')[1]] = r.value; });
+      document.querySelectorAll(`[data-jawab="${id}"]`).forEach((el) => {
+        if (el.type === 'radio') { if (el.checked) jawaban[el.name.split('-')[1]] = el.value; }
+        else jawaban[el.name.split('-')[1]] = el.value;
+      });
       try {
         const h = await apiFetch(`/kuis/${id}/submit`, { method: 'POST', body: { jawaban } });
-        toast(`Skor: ${h.skor} (${h.benar}/${h.total} benar)`, 'green'); muatSemua();
+        clearInterval(timerKuis);
+        kuisSedangDikerjakan = false; // buka kunci, refresh boleh jalan lagi
+        toast(h.esai_menunggu ? `Tersimpan ✓ (PG: ${h.skor}, esai menunggu dinilai mentor)` : `Skor: ${h.skor} (${h.benar}/${h.total} benar)`, 'green'); muatSemua();
       } catch (err) { toast(err.message, 'red'); }
     }
   });
@@ -217,6 +278,6 @@
   });
 
   muatSemua(); muatDiskusi();
-  setInterval(() => { muatSemua(); muatDiskusi(); }, 10000); // sinkron otomatis
-  dengarRefresh(() => { muatSemua(); muatDiskusi(); }); // instan lintas-tab
+  setInterval(() => { if (!kuisSedangDikerjakan) muatSemua(); muatDiskusi(); }, 10000); // jeda saat kuis terbuka
+  dengarRefresh(() => { if (!kuisSedangDikerjakan) muatSemua(); muatDiskusi(); }); // instan lintas-tab, hormati kuis terbuka
 })();
